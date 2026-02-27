@@ -126,50 +126,99 @@ MongoDB collections:
 - Optimized build with asset hashing and code splitting
 - See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for deployment instructions
 
+## Claude Code Configuration
+
+This project uses a structured Claude Code setup for code quality, security, and efficient AI-assisted development.
+
+### Quick Commands
+
+- `/code-review` - Comprehensive code quality review (uses Code Reviewer agent)
+- `/plan` - Create implementation plan for new features (uses Architect agent)
+- `/build-fix` - Fix TypeScript/ESLint errors automatically
+- `/ui-check` - Validate UI implementation uses Tabler components
+- `/document` - Document significant changes (updates architecture-decisions.md, session-context.json)
+
+### Documentation
+
+- `.claude/QUICK_START.md` - Quick reference guide
+- `.claude/agents/` - Specialized review agents (Code Reviewer, Security Reviewer, Architect)
+- `.claude/commands/` - Slash command definitions (plan, code-review, build-fix, ui-check, document)
+- `.claude/skills/` - Code patterns and best practices
+  - `frontend-patterns/` - React, TypeScript, Tabler UI, Mapbox/Deck.gl, Offline PWA
+  - `backend-patterns/` - Express API, MongoDB, Vercel Serverless, Authentication
+  - `coding-standards/` - TypeScript standards, Immutability patterns
+- `.claude/contexts/` - Mode-based behavior (dev.md, review.md)
+
+### Memory & Token Optimization
+
+- `.claude/memory/session-context.json` - Current patterns & framework decisions
+- `.claude/memory/architecture-decisions.md` - Decision log with rationale
+- Reference documentation instead of re-reading code (~2000-3000 tokens saved per reference)
+- Use skills for established patterns
+
+### Quick Start
+
+For new developers or when starting work:
+1. Read `.claude/QUICK_START.md` for common workflows
+2. Check `session-context.json` for current architecture
+3. Review relevant skills in `.claude/skills/` for your task
+4. Use `/plan` command for complex features
+5. Run `/code-review` before committing
+
 ## Development Guidelines
 
 ### CRITICAL RULES - ALWAYS FOLLOW BEFORE EDITING
 
 #### 1. Pre-Edit Checklist
 Before making ANY code changes:
-- [ ] Read the relevant documentation in `docs/` directory
-- [ ] Check existing patterns in similar components
-- [ ] Verify the change aligns with architecture (see docs/ARCHITECTURE.md)
+- [ ] **READ `.claude/FEATURE_IMPLEMENTATION_GUIDE.md` FIRST** (ensures coherent development)
+- [ ] Check `.claude/memory/data-models.md` (understand data structures)
+- [ ] Check `.claude/memory/session-context.json` for current patterns
+- [ ] Read relevant skills in `.claude/skills/` directory
+- [ ] Check existing patterns in similar components (copy the pattern!)
+- [ ] Verify the change aligns with architecture
 - [ ] Ensure consistency with Tabler CSS theme (NO custom styling unless necessary)
 - [ ] Read the file you're about to edit completely first
 
 #### 2. Styling Rules (STRICT)
-- ✅ ALWAYS use Tabler CSS classes first
+- ✅ ALWAYS use Tabler CSS classes first (see `.claude/skills/frontend-patterns/tabler-ui.md`)
 - ✅ ALWAYS use Bootstrap utilities for layout
+- ✅ Run `/ui-check` to verify Tabler compliance
 - ❌ NEVER add custom CSS when Tabler equivalent exists
 - ❌ NEVER use inline styles except for dynamic values (e.g., positioning based on state)
 - 🔍 If you need custom styles, check if Tabler has a solution first
 - 📝 Document why custom styles are necessary if you must use them
 
 #### 3. Component Rules
-- ✅ ALWAYS use functional components with hooks
+- ✅ ALWAYS use functional components with hooks (see `.claude/skills/frontend-patterns/react-typescript.md`)
 - ✅ ALWAYS define TypeScript interfaces for props
-- ✅ ALWAYS follow the component structure in docs/COMPONENTS.md
+- ✅ ALWAYS follow established patterns (check `.claude/memory/session-context.json`)
+- ✅ ALWAYS make new fields optional (`field?: type`) - see `.claude/skills/coding-standards/backwards-compatibility.md`
+- ✅ ALWAYS use null checks when rendering optional fields (`field?.method()` or `{field && <div>...}</div>}`)
 - ❌ NEVER create class components
-- ❌ NEVER use `any` type (use proper TypeScript types)
+- ❌ NEVER use `any` type (see `.claude/skills/coding-standards/typescript.md`)
+- ❌ NEVER add required fields to existing database types (breaks old data)
 - 📁 Place new components in appropriate directory (dashboard/, map/, catch-form/)
 
 #### 4. State Management Rules
-- ✅ Use `useState` for local component state only
+- ✅ Use `useState` for local component state only (see `.claude/skills/frontend-patterns/react-hooks.md`)
 - ✅ Use `useContext` (AuthContext) for global state
-- ✅ Use custom hooks for reusable data fetching logic
+- ✅ Use custom hooks for reusable data fetching logic (useTripData, useLiveLocations, useWaypoints)
+- ✅ Follow immutability patterns (see `.claude/skills/coding-standards/immutability.md`)
 - ❌ NEVER duplicate data fetching logic across components
 - ❌ NEVER lift state higher than necessary
 
 #### 5. API Integration Rules
-- ✅ ALWAYS use service layer functions (src/api/)
+- ✅ ALWAYS use service layer functions (src/api/) with caching (see `.claude/skills/frontend-patterns/react-hooks.md`)
+- ✅ Backend: Use shared utilities from `api/_utils/` (see `.claude/skills/backend-patterns/vercel-serverless.md`)
 - ✅ ALWAYS implement error handling with try/catch
 - ✅ ALWAYS show user-friendly error messages
 - ❌ NEVER make direct fetch calls from components
 - ❌ NEVER expose API credentials in frontend code
 
 #### 6. Code Quality Rules
-- ✅ ALWAYS run `npm run lint` before committing
+- ✅ ALWAYS run `/build-fix` to resolve TypeScript/ESLint errors
+- ✅ ALWAYS run `/code-review` before committing
 - ✅ ALWAYS use meaningful variable names
 - ✅ ALWAYS add comments for complex logic
 - ✅ ALWAYS handle loading and error states in UI
@@ -178,6 +227,8 @@ Before making ANY code changes:
 
 #### 7. Testing Before Committing
 - ✅ Test in browser (desktop + mobile view)
+- ✅ Test map interactions (if applicable) - see `.claude/skills/frontend-patterns/mapbox-deckgl.md`
+- ✅ Test offline behavior (if applicable) - see `.claude/skills/frontend-patterns/offline-pwa.md`
 - ✅ Test all user interactions affected by your change
 - ✅ Verify no console errors
 - ✅ Check that existing functionality still works
@@ -186,13 +237,17 @@ Before making ANY code changes:
 ### Workflow for Making Changes
 
 ```
-1. READ relevant documentation (docs/)
-2. UNDERSTAND existing patterns (check similar components)
-3. PLAN your changes (consider impact)
-4. IMPLEMENT following guidelines above
-5. TEST thoroughly (see testing checklist)
-6. LINT your code (npm run lint)
-7. COMMIT with meaningful message
+1. REFERENCE - Check `.claude/memory/session-context.json` for patterns
+2. PLAN - Use `/plan` command for complex features
+3. READ - Check relevant skills in `.claude/skills/`
+4. UNDERSTAND - Review similar components in codebase
+5. IMPLEMENT - Follow guidelines and established patterns
+6. FIX - Run `/build-fix` for TypeScript/ESLint errors
+7. CHECK - Run `/ui-check` if UI changes
+8. REVIEW - Run `/code-review` for quality check
+9. TEST - Thoroughly test (desktop, mobile, map, offline)
+10. DOCUMENT - Use `/document` for significant changes
+11. COMMIT - Meaningful commit message
 ```
 
 ### Common Patterns to Follow
@@ -278,16 +333,19 @@ const MyComponent = () => {
 ### When to Ask Questions
 
 Ask the user before proceeding if:
-- ❓ Multiple valid approaches exist (e.g., which pattern to use)
+- ❓ Multiple valid approaches exist (consider using `/plan` to present options)
 - ❓ Unclear requirements or acceptance criteria
 - ❓ Breaking changes would affect existing functionality
-- ❓ Architectural decision needed (e.g., new external dependency)
+- ❓ Architectural decision needed (consult Architect agent via `/plan`)
 - ❓ Design/UX decision required
 
 ### Documentation to Reference
 
-Before making changes, check:
-- **Architecture decisions**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Data flow patterns**: [docs/DATA_FLOW.md](docs/DATA_FLOW.md)
-- **Component patterns**: [docs/COMPONENTS.md](docs/COMPONENTS.md)
-- **Development conventions**: [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)
+Before making changes, check in this order (saves tokens):
+1. **Claude Code Memory**: `.claude/memory/session-context.json` - Quick architecture reference
+2. **Claude Code Skills**: `.claude/skills/` - Established patterns for your task
+3. **Architecture Decisions**: `.claude/memory/architecture-decisions.md` - Why decisions were made
+4. **This File**: Current section - High-level project overview
+5. **Codebase**: Only when implementation details needed
+
+**Pro Tip**: Use `/plan` for complex features - it will reference all relevant documentation for you.
