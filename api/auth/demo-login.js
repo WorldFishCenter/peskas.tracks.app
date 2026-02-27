@@ -26,7 +26,7 @@ async function connectToMongo() {
   
   try {
     await client.connect();
-    return { client, db: client.db('portal-dev') };
+    return { client, db: client.db('portal-prod') };
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
     throw error;

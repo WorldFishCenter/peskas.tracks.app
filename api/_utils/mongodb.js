@@ -36,7 +36,7 @@ function getMongoDBUri() {
  * Get database name from environment or use default
  */
 function getDatabaseName() {
-  return process.env.MONGODB_DATABASE || 'portal-dev';
+  return process.env.MONGODB_DATABASE || 'portal-prod';
 }
 
 /**

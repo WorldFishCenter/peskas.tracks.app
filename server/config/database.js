@@ -32,7 +32,7 @@ const client = new MongoClient(MONGODB_URI, {
 });
 
 // Database name
-const DB_NAME = 'portal-dev';
+const DB_NAME = 'portal-prod';
 
 /**
  * Connect to MongoDB and return the database instance

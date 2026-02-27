@@ -12,7 +12,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI?.replace(/^["']|["']$/g, '');
-const DATABASE_NAME = process.env.MONGODB_DATABASE || 'portal-dev';
+const DATABASE_NAME = process.env.MONGODB_DATABASE || 'portal-prod';
 
 if (!MONGODB_URI) {
   console.error('Error: MONGODB_URI environment variable is not set');

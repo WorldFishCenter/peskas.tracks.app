@@ -21,7 +21,7 @@ async function connectToMongo() {
   });
 
   await client.connect();
-  return { client, db: client.db('portal-dev') };
+  return { client, db: client.db('portal-prod') };
 }
 
 // Serverless function handler for fetching user catch events

@@ -21,7 +21,7 @@ async function connectToMongo() {
   });
 
   await client.connect();
-  return { client, db: client.db('portal-dev') };
+  return { client, db: client.db('portal-prod') };
 }
 
 export default async function handler(req, res) {

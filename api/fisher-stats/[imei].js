@@ -30,7 +30,7 @@ async function connectToMongo() {
   try {
     await client.connect();
     console.log('MongoDB connection successful for fisher-stats');
-    const db = client.db('portal-dev');
+    const db = client.db('portal-prod');
 
     cachedClient = client;
     cachedDb = db;
