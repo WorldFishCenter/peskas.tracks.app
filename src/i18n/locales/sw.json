@@ -281,7 +281,10 @@
     "noTripsInDateRange": "Hakuna safari zilizopatikana katika kipindi hiki. Bado unaweza kuchunguza batimetri.",
     "noTripsShort": "Hakuna safari katika kipindi hiki",
     "loadingMap": "Inapakia ramani...",
-    "mapError": "Hitilafu ya kupakia ramani. Jaribu tena."
+    "mapError": "Hitilafu ya kupakia ramani. Jaribu tena.",
+    "basemapUnavailable": "Ramani ya setilaiti haipatikani",
+    "basemapTokenHint": "Hakuna tokeni ya Mapbox iliyowekwa. Njia za vyombo bado zinaonyeshwa.",
+    "basemapRejectedHint": "Tokeni ya Mapbox imekataliwa. Njia za vyombo bado zinaonyeshwa."
   },
   "insights": {
     "title": "Ufahamu wa Chombo",

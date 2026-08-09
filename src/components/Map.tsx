@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Map from 'react-map-gl';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Map, { type MapRef } from 'react-map-gl';
 import type { Map as MapboxMap } from 'mapbox-gl';
 import DeckGL from '@deck.gl/react';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +21,11 @@ import './map/MapStyles.css';
 
 // Get Mapbox token from environment variables
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'YOUR_MAPBOX_TOKEN';
+
+// A usable Mapbox public token always starts with "pk.". Anything else (missing
+// var, leftover placeholder) would still mount a map that can never load a tile,
+// so we check up front and skip initialization entirely — see hasValidToken below.
+const hasValidToken = MAPBOX_TOKEN.startsWith('pk.');
 
 const INITIAL_VIEW_STATE: ViewState = {
   longitude: 39.61, // East Africa coast (Zanzibar area based on sample data)
@@ -60,12 +65,30 @@ const FishersMap: React.FC<MapProps> = ({
   const [tripById, setTripById] = useState<Record<string, TripPoint[]>>({});
   // Hover functionality can be added back if needed in the future
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
-  const mapConfig = getMapConfig();
+  // Read once per mount: getMapConfig() builds a fresh object on every call, and
+  // passing a new object into the render path on each render buys us nothing.
+  const mapConfig = useMemo(() => getMapConfig(), []);
   const [mapStyle] = useState(mapConfig.defaultMapStyle);
+  // Base map failures (revoked/over-quota token, bad style URL) are otherwise
+  // silent: deck.gl keeps drawing overlays over an empty canvas.
+  const [basemapError, setBasemapError] = useState<string | null>(
+    hasValidToken ? null : 'missingToken'
+  );
   const [showActivityGrid, setShowActivityGrid] = useState(false);
   const [showBathymetry, setShowBathymetry] = useState(false);
   const [bathymetryLoading, setBathymetryLoading] = useState(false);
-  const mapRef = useRef<MapboxMap | null>(null);
+  // Held in state, not a ref: react-map-gl populates the imperative handle from
+  // an async import, so it is still null when this component's mount effects
+  // run. State makes the effects below re-run once the map actually arrives.
+  const [mapInstance, setMapInstance] = useState<MapboxMap | null>(null);
+
+  // Stable identity is required: an inline ref callback is a new function every
+  // render, which makes React detach (null) and reattach it on each pass and
+  // fire setState twice per render. Memoized, it only runs when the underlying
+  // map handle actually changes.
+  const handleMapRef = useCallback((ref: MapRef | null) => {
+    setMapInstance(ref?.getMap() ?? null);
+  }, []);
 
   // Mobile-friendly tooltip state
   const [mobileTooltip, setMobileTooltip] = useState<MobileTooltip | null>(null);
@@ -283,12 +306,16 @@ const FishersMap: React.FC<MapProps> = ({
 
   // Bathymetry layer management with vector tiles
   useEffect(() => {
-    const map = mapRef.current;
+    const map = mapInstance;
     if (!map || !map.isStyleLoaded()) return;
 
     const sourceId = 'bathymetry-source';
     const lineLayerId = 'bathymetry-lines';
     const labelLayerId = 'bathymetry-labels';
+
+    // Abandon an in-flight GeoJSON fetch if this effect tears down first,
+    // otherwise the resumed closure mutates a map that now belongs elsewhere.
+    const abortController = new AbortController();
 
     const addBathymetryLayers = async () => {
       if (showBathymetry) {
@@ -301,8 +328,14 @@ const FishersMap: React.FC<MapProps> = ({
             console.log('Loading bathymetry GeoJSON...');
 
             // Use fetch with progress for better UX
-            const response = await fetch('/bathymetry/bathymetry_contours_wio.geojson');
+            const response = await fetch('/bathymetry/bathymetry_contours_wio.geojson', {
+              signal: abortController.signal
+            });
             const data = await response.json();
+
+            // Re-check after awaiting: another mount may have added the source
+            // while this fetch was in flight, and addSource would throw.
+            if (abortController.signal.aborted || map.getSource(sourceId)) return;
 
             map.addSource(sourceId, {
               type: 'geojson',
@@ -383,7 +416,10 @@ const FishersMap: React.FC<MapProps> = ({
             });
           }
         } catch (error) {
-          console.error('Error adding bathymetry layers:', error);
+          // An aborted fetch is an expected teardown, not a failure
+          if ((error as Error)?.name !== 'AbortError') {
+            console.error('Error adding bathymetry layers:', error);
+          }
         } finally {
           // Hide loading indicator
           setBathymetryLoading(false);
@@ -404,7 +440,20 @@ const FishersMap: React.FC<MapProps> = ({
     };
 
     addBathymetryLayers();
-  }, [showBathymetry]);
+
+    // reuseMaps={true} means the map instance outlives this component: it is
+    // pooled on unmount rather than destroyed. Without this cleanup the
+    // contours stay attached and the next mount inherits them while its own
+    // toggle reads "off" — and every add-guard below short-circuits, so the
+    // user cannot clear them.
+    return () => {
+      abortController.abort();
+      if (!map.style) return;
+      if (map.getLayer(labelLayerId)) map.removeLayer(labelLayerId);
+      if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+    };
+  }, [showBathymetry, mapInstance]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -450,15 +499,63 @@ const FishersMap: React.FC<MapProps> = ({
           return tooltipContent ? { html: tooltipContent } : null;
         }}
       >
-        <Map
-          ref={(ref) => { mapRef.current = ref?.getMap() || null; }}
-          mapStyle={mapStyle}
-          mapboxAccessToken={MAPBOX_TOKEN}
-          attributionControl={mapConfig.showAttribution}
-          trackResize={true}
-          reuseMaps={false}
-        />
+        {hasValidToken && (
+          <Map
+            ref={handleMapRef}
+            mapStyle={mapStyle}
+            mapboxAccessToken={MAPBOX_TOKEN}
+            attributionControl={mapConfig.showAttribution}
+            trackResize={true}
+            // Mapbox bills one "map load" per Map initialization, not per render,
+            // pan or zoom. Reusing the instance across mount/unmount (breakpoint
+            // switches, route changes) keeps a session at a single billable load.
+            // Trade-off: a pooled map is never destroyed, so one WebGL context
+            // stays retained for the life of the page.
+            reuseMaps={true}
+            onLoad={() => {
+              // Recovered — drop a warning raised by an earlier failed attempt
+              setBasemapError(prev => (prev === 'loadFailed' ? null : prev));
+            }}
+            onError={(evt) => {
+              console.error('Mapbox base map error:', evt.error);
+              // mapbox-gl fires `error` for every non-404 tile failure, so an
+              // offline vessel or a single 5xx would otherwise latch the banner
+              // for the rest of the session. Only auth failures are fatal.
+              const status = (evt.error as { status?: number })?.status;
+              const isAuthFailure =
+                status === 401 ||
+                status === 403 ||
+                /valid Mapbox access token/i.test(evt.error?.message ?? '');
+
+              if (isAuthFailure) {
+                setBasemapError('loadFailed');
+              }
+            }}
+          />
+        )}
       </DeckGL>
+
+      {/* Base map unavailable notice — overlays sit on an empty canvas otherwise */}
+      {basemapError && (
+        <div
+          className="alert alert-warning m-0 shadow-sm"
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            maxWidth: '90%'
+          }}
+        >
+          <div className="fw-bold">{t('map.basemapUnavailable')}</div>
+          <div className="small">
+            {basemapError === 'missingToken'
+              ? t('map.basemapTokenHint')
+              : t('map.basemapRejectedHint')}
+          </div>
+        </div>
+      )}
 
       {/* Map Controls */}
       <MapControls
@@ -549,10 +646,11 @@ const FishersMap: React.FC<MapProps> = ({
         <>
           {/* Desktop: top center */}
           <div 
-            className="card border-0 shadow-sm d-none d-md-block" 
-            style={{ 
+            className="card border-0 shadow-sm d-none d-md-block"
+            style={{
               position: 'absolute',
-              top: '10px',
+              // Drop below the base map warning when both are on screen
+              top: basemapError ? '92px' : '10px',
               left: '50%',
               transform: 'translateX(-50%)',
               zIndex: 100,
@@ -579,10 +677,11 @@ const FishersMap: React.FC<MapProps> = ({
 
           {/* Mobile: top left */}
           <div 
-            className="card border-0 shadow-sm d-md-none" 
-            style={{ 
+            className="card border-0 shadow-sm d-md-none"
+            style={{
               position: 'absolute',
-              top: '10px',
+              // Drop below the base map warning when both are on screen
+              top: basemapError ? '92px' : '10px',
               left: '10px',
               zIndex: 100,
               backgroundColor: 'rgba(var(--tblr-body-bg-rgb), 0.7)',

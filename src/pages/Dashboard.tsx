@@ -6,7 +6,7 @@ import { IconCalendarStats, IconFish } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { subDays, differenceInDays } from 'date-fns';
-import { Trip, LiveLocation, GPSCoordinate } from '../types';
+import { Trip, LiveLocation, GPSCoordinate, Waypoint, WaypointFormData } from '../types';
 import { calculateVesselInsights } from '../utils/calculations';
 import { formatDisplayDate } from '../utils/formatters';
 import { renderNoImeiDataMessage } from '../utils/userInfo';
@@ -14,6 +14,7 @@ import { useTripData } from '../hooks/useTripData';
 import { useLiveLocations } from '../hooks/useLiveLocations';
 import { useVesselSelection } from '../hooks/useVesselSelection';
 import { useWaypoints } from '../hooks/useWaypoints';
+import { useIsDesktopLayout } from '../hooks/useIsDesktopLayout';
 import VesselDetailsPanel from '../components/dashboard/VesselDetailsPanel';
 import VesselInsightsPanel from '../components/dashboard/VesselInsightsPanel';
 import { clearCache } from '../api/pelagicDataService';
@@ -58,7 +59,6 @@ const Dashboard: React.FC = () => {
   const {
     waypoints,
     visibleWaypoints,
-    loading: waypointsLoading,
     addWaypoint,
     removeWaypoint,
     toggleWaypointVisibility,
@@ -89,6 +89,11 @@ const Dashboard: React.FC = () => {
     handleSelectTrip: originalHandleSelectTrip,
     clearSelection
   } = useVesselSelection(trips, tripPoints, liveLocations);
+
+  // The mobile and desktop layouts are both mounted and toggled with CSS. The
+  // map must render in only one of them: each Mapbox instance is a billable map
+  // load, so rendering both doubles the cost for a map the user never sees.
+  const isDesktopLayout = useIsDesktopLayout();
 
   // Wrapper for handleSelectVessel that also resets live location view
   const handleSelectVessel = (vessel: LiveLocation | null) => {
@@ -257,7 +262,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleWaypointSave = async (formData: any) => {
+  const handleWaypointSave = async (formData: WaypointFormData) => {
     try {
       await addWaypoint(formData);
       // Don't close modal - user might want to add more waypoints
@@ -282,7 +287,7 @@ const Dashboard: React.FC = () => {
     setSelectedMapCoordinates(null);
   };
 
-  const handleShowWaypointOnMap = (waypoint: any) => {
+  const handleShowWaypointOnMap = (waypoint: Waypoint) => {
     // If waypoint is hidden, make it visible
     if (waypoint.visible === false && waypoint._id) {
       toggleWaypointVisibility(waypoint._id);
@@ -354,6 +359,7 @@ const Dashboard: React.FC = () => {
 
           {/* 1. Map - First on mobile, stays in right column on desktop */}
           <div className="d-md-none mb-2" data-map-container>
+            {!isDesktopLayout && (
             <MapContainer
               loading={loading}
               errorMessage={errorMessage}
@@ -388,6 +394,7 @@ const Dashboard: React.FC = () => {
             onConfirmWaypointLocation={handleConfirmWaypointLocation}
             centeredWaypoint={centeredWaypoint}
           />
+          )}
           </div>
 
 
@@ -477,6 +484,7 @@ const Dashboard: React.FC = () => {
 
           {/* Desktop Map Area */}
           <div className="col-lg-9 col-md-8" data-map-container>
+            {isDesktopLayout && (
             <MapContainer
               loading={loading}
               errorMessage={errorMessage}
@@ -511,6 +519,7 @@ const Dashboard: React.FC = () => {
               onConfirmWaypointLocation={handleConfirmWaypointLocation}
               centeredWaypoint={centeredWaypoint}
             />
+            )}
 
             {/* Trips Table - Below the map (PDS users only) */}
             {hasTrackingDevice && (

@@ -281,7 +281,10 @@
     "noTripsInDateRange": "No trips found in this date range. You can still explore the bathymetry.",
     "noTripsShort": "No trips in this date range",
     "loadingMap": "Loading map...",
-    "mapError": "Error loading map. Please try again."
+    "mapError": "Error loading map. Please try again.",
+    "basemapUnavailable": "Satellite base map unavailable",
+    "basemapTokenHint": "No Mapbox access token is configured. Vessel tracks are still shown.",
+    "basemapRejectedHint": "The Mapbox access token was rejected. Vessel tracks are still shown."
   },
   "insights": {
     "title": "Vessel Insights",

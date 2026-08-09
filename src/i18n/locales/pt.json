@@ -281,7 +281,10 @@
     "noTripsInDateRange": "Nenhuma viagem encontrada neste período. Você ainda pode explorar a batimetria.",
     "noTripsShort": "Sem viagens neste período",
     "loadingMap": "Carregando mapa...",
-    "mapError": "Erro ao carregar mapa. Tente novamente."
+    "mapError": "Erro ao carregar mapa. Tente novamente.",
+    "basemapUnavailable": "Mapa base de satélite indisponível",
+    "basemapTokenHint": "Nenhum token de acesso do Mapbox está configurado. As rotas das embarcações continuam visíveis.",
+    "basemapRejectedHint": "O token de acesso do Mapbox foi rejeitado. As rotas das embarcações continuam visíveis."
   },
   "insights": {
     "title": "Informações da Embarcação",
