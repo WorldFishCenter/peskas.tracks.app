@@ -205,7 +205,10 @@
     "noVesselSelected": "Nenhuma embarcação selecionada. Por favor, escolha um barco para ver os dados de rastreamento.",
     "noDataForImei": "Nenhum dado de rastreamento disponível para o seu IMEI: {{imei}}",
     "noDataForImeis": "Nenhum dado de rastreamento disponível para seus IMEIs: {{imeis}}",
-    "noTrackingDevice": "O rastreamento da embarcação requer um dispositivo PDS. Você ainda pode reportar capturas e ver estatísticas."
+    "noTrackingDevice": "O rastreamento da embarcação requer um dispositivo PDS. Você ainda pode reportar capturas e ver estatísticas.",
+    "adminMode": "Modo de Administrador",
+    "adminSelectVesselMessage": "Selecione uma embarcação para ver os seus dados de rastreamento e viagens",
+    "chooseVessel": "Escolher Embarcação"
   },
   "vessel": {
     "name": "Nome da Embarcação",

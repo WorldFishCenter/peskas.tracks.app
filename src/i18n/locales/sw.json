@@ -205,7 +205,10 @@
     "noVesselSelected": "Hakuna chombo kimechaguliwa. Tafadhali chagua mashua ili kuona data ya ufuatiliaji.",
     "noDataForImei": "Hakuna data ya ufuatiliaji inayopatikana kwa IMEI yako: {{imei}}",
     "noDataForImeis": "Hakuna data ya ufuatiliaji inayopatikana kwa IMEI zako: {{imeis}}",
-    "noTrackingDevice": "Ufuatiliaji wa chombo unahitaji kifaa cha PDS. Bado unaweza kuripoti uvuvi na kuona takwimu."
+    "noTrackingDevice": "Ufuatiliaji wa chombo unahitaji kifaa cha PDS. Bado unaweza kuripoti uvuvi na kuona takwimu.",
+    "adminMode": "Hali ya Msimamizi",
+    "adminSelectVesselMessage": "Chagua chombo ili kuona data yake ya ufuatiliaji na safari",
+    "chooseVessel": "Chagua Chombo"
   },
   "vessel": {
     "name": "Jina la Chombo",

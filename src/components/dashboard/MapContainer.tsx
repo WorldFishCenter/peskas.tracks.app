@@ -139,9 +139,9 @@ const MapContainer: React.FC<MapContainerProps> = ({
             <div className="empty-icon">
               <i className="ti ti-users-group text-primary" style={{ fontSize: '3rem' }}></i>
             </div>
-            <p className="empty-title">Administrator Mode</p>
+            <p className="empty-title">{t('dashboard.adminMode')}</p>
             <p className="empty-subtitle text-muted">
-              Select a vessel to view its tracking data and trips
+              {t('dashboard.adminSelectVesselMessage')}
             </p>
             <div className="empty-action">
               <button 
@@ -150,7 +150,7 @@ const MapContainer: React.FC<MapContainerProps> = ({
                 style={{ minHeight: '44px' }}
               >
                 <i className="ti ti-ship me-2"></i>
-                Choose Vessel
+                {t('dashboard.chooseVessel')}
               </button>
             </div>
           </div>

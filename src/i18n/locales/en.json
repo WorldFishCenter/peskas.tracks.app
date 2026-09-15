@@ -205,7 +205,10 @@
     "noVesselSelected": "No vessel selected. Please choose a boat to view tracking data.",
     "noDataForImei": "No tracking data is available for your vessel",
     "noDataForImeis": "No tracking data is available for your vessel",
-    "noTrackingDevice": "Vessel tracking requires a PDS device. You can still report catches and view statistics."
+    "noTrackingDevice": "Vessel tracking requires a PDS device. You can still report catches and view statistics.",
+    "adminMode": "Administrator Mode",
+    "adminSelectVesselMessage": "Select a vessel to view its tracking data and trips",
+    "chooseVessel": "Choose Vessel"
   },
   "vessel": {
     "name": "Vessel Name",
