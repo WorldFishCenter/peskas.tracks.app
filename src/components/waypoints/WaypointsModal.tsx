@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { IconMapPin, IconX, IconTrash, IconCurrentLocation, IconClick, IconEye } from '@tabler/icons-react';
 import { Waypoint, WaypointFormData, WaypointType, GPSCoordinate } from '../../types';
 import { getAllWaypointTypeConfigs } from '../../utils/waypointConfig';
-import { useIsDarkMode } from '../../hooks/useIsDarkMode';
 import ModalShell from '../ModalShell';
 
 interface WaypointsModalProps {
@@ -47,7 +46,6 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isDarkMode = useIsDarkMode();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const visibleCount = waypoints.filter(wp => wp.visible !== false).length;
 
