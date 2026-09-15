@@ -14,7 +14,6 @@ import { useTripData } from '../hooks/useTripData';
 import { useLiveLocations } from '../hooks/useLiveLocations';
 import { useVesselSelection } from '../hooks/useVesselSelection';
 import { useWaypoints } from '../hooks/useWaypoints';
-import { useIsDesktopLayout } from '../hooks/useIsDesktopLayout';
 import VesselDetailsPanel from '../components/dashboard/VesselDetailsPanel';
 import VesselInsightsPanel from '../components/dashboard/VesselInsightsPanel';
 import { clearCache } from '../api/pelagicDataService';
@@ -89,11 +88,6 @@ const Dashboard: React.FC = () => {
     handleSelectTrip: originalHandleSelectTrip,
     clearSelection
   } = useVesselSelection(trips, tripPoints, liveLocations);
-
-  // The mobile and desktop layouts are both mounted and toggled with CSS. The
-  // map must render in only one of them: each Mapbox instance is a billable map
-  // load, so rendering both doubles the cost for a map the user never sees.
-  const isDesktopLayout = useIsDesktopLayout();
 
   // Wrapper for handleSelectVessel that also resets live location view
   const handleSelectVessel = (vessel: LiveLocation | null) => {
@@ -306,6 +300,45 @@ const Dashboard: React.FC = () => {
   // Calculate trip statistics for vessel insights
   const insights = calculateVesselInsights(tripPoints);
 
+  // Built once and rendered into whichever layout is active, so the prop list
+  // has a single home and the map can never mount twice.
+  const mapContainer = (
+    <MapContainer
+      loading={loading}
+      errorMessage={errorMessage}
+      dataAvailable={dataAvailable}
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      selectedTripId={selectedTripId}
+      liveLocations={liveLocations}
+      centerOnLiveLocations={centerMapOnLiveLocations}
+      onSelectVessel={handleSelectVessel}
+      onRetry={refetchTripData}
+      waypoints={visibleWaypoints}
+      onTryWiderDateRange={() => handleDateChange(subDays(new Date(), 90), new Date())}
+      renderNoImeiDataMessage={() => renderNoImeiDataMessage(currentUser, t)}
+      isViewingLiveLocations={isViewingLiveLocations}
+      onCenterOnLiveLocations={centerOnLiveLocations}
+      isAdminMode={currentUser?.role === 'admin'}
+      adminHasNoVesselsSelected={currentUser?.role === 'admin' && (!currentUser?.imeis || currentUser.imeis.length === 0)}
+      onShowVesselSelection={handleShowBoatSelection}
+      onRefresh={handleRefresh}
+      isRefreshing={isRefreshing}
+      hasTrackingDevice={hasTrackingDevice}
+      deviceLocation={deviceLocation}
+      onGetMyLocation={getMyLocation}
+      isGettingLocation={isGettingLocation}
+      showNoTripsMessage={hasTrackingDevice && dataAvailable === false && !loading && !errorMessage && !isViewingLiveLocations}
+      onEnterWaypointMode={handleEnterWaypointMode}
+      onToggleWaypoints={handleToggleWaypointsModal}
+      waypointsCount={waypoints.length}
+      isWaypointSelectionMode={isWaypointSelectionMode}
+      onCancelWaypointMode={handleCancelWaypointMode}
+      onConfirmWaypointLocation={handleConfirmWaypointLocation}
+      centeredWaypoint={centeredWaypoint}
+    />
+  );
+
   // Create the page header
   const pageHeader = (
     <div className="page-header d-print-none">
@@ -335,13 +368,11 @@ const Dashboard: React.FC = () => {
 
   return (
     <MainLayout pageHeader={pageHeader} stickyFooter={stickyFooter}>
-      <div className="row g-2">
-        {/* Mobile-first order */}
-        <div className="col-12">
-
-          {/* 2. Date Range Selector - Second on mobile (PDS users only) */}
+      <div className="dashboard-layout">
+        {/* Date range — sidebar on desktop, first on mobile */}
+        <div className="dashboard-layout__controls">
           {hasTrackingDevice && (
-            <div className="card mb-2 d-md-none">
+            <div className="card mb-2">
               <div className="card-body p-2">
                 <div className="d-flex align-items-center mb-2">
                   <IconCalendarStats className="icon me-2 text-primary" />
@@ -357,182 +388,49 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* 1. Map - First on mobile, stays in right column on desktop */}
-          <div className="d-md-none mb-2" data-map-container>
-            {!isDesktopLayout && (
-            <MapContainer
-              loading={loading}
-              errorMessage={errorMessage}
-              dataAvailable={dataAvailable}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              selectedTripId={selectedTripId}
-              liveLocations={liveLocations}
-              centerOnLiveLocations={centerMapOnLiveLocations}
-              onSelectVessel={handleSelectVessel}
-              onRetry={refetchTripData}
-              onTryWiderDateRange={() => handleDateChange(subDays(new Date(), 90), new Date())}
-              renderNoImeiDataMessage={() => renderNoImeiDataMessage(currentUser, t)}
-              isViewingLiveLocations={isViewingLiveLocations}
-              onCenterOnLiveLocations={centerOnLiveLocations}
-              isAdminMode={currentUser?.role === 'admin'}
-              adminHasNoVesselsSelected={currentUser?.role === 'admin' && (!currentUser?.imeis || currentUser.imeis.length === 0)}
-              onShowVesselSelection={handleShowBoatSelection}
-              onRefresh={handleRefresh}
-              isRefreshing={isRefreshing}
-              hasTrackingDevice={hasTrackingDevice}
-              deviceLocation={deviceLocation}
-              onGetMyLocation={getMyLocation}
-            isGettingLocation={isGettingLocation}
-            showNoTripsMessage={hasTrackingDevice && dataAvailable === false && !loading && !errorMessage && !isViewingLiveLocations}
-            waypoints={visibleWaypoints}
-            onEnterWaypointMode={handleEnterWaypointMode}
-            onToggleWaypoints={handleToggleWaypointsModal}
-            waypointsCount={waypoints.length}
-            isWaypointSelectionMode={isWaypointSelectionMode}
-            onCancelWaypointMode={handleCancelWaypointMode}
-            onConfirmWaypointLocation={handleConfirmWaypointLocation}
-            centeredWaypoint={centeredWaypoint}
-          />
-          )}
+          {/* Report Catch — mobile gets this from the sticky footer instead */}
+          <div className="card mb-2 d-none d-md-block">
+            <div className="card-body p-2">
+              <button
+                className="btn btn-primary w-100 d-flex align-items-center justify-content-center position-relative"
+                onClick={handleReportCatchClick}
+                style={{ minHeight: '45px' }}
+              >
+                <IconFish className="me-2" size={20} />
+                <span className="fw-bold">{t('catch.reportCatch')}</span>
+              </button>
+              <small className="text-muted mt-2 d-block text-center">
+                {t('catch.reportFromRecentTrips')}
+              </small>
+            </div>
           </div>
+        </div>
 
+        {/* Map and its trips table */}
+        <div className="dashboard-layout__map" data-map-container>
+          {mapContainer}
 
-
-          {/* 3. Trips Table - Third on mobile (PDS users only) */}
           {hasTrackingDevice && (
-            <div className="d-md-none mb-2">
-              <TripsTable
-                trips={trips}
-                onSelectTrip={handleSelectTrip}
-                loading={loading}
-                selectedTripId={selectedTripId}
-              />
-            </div>
-          )}
-
-          {/* 4. Vessel Details Panel - Fourth on mobile (PDS users only) */}
-          {hasTrackingDevice && (
-            <div className="d-md-none mb-2">
-              <VesselDetailsPanel
-                liveLocations={liveLocations}
-                onCenterOnLiveLocations={centerOnLiveLocations}
-              />
-            </div>
-          )}
-
-          {/* 5. Vessel Insights - Fifth on mobile (PDS users only) */}
-          {hasTrackingDevice && (
-            <div className="d-md-none mb-2">
-              <VesselInsightsPanel insights={insights} tripsCount={trips.length} />
-            </div>
+            <TripsTable
+              trips={trips}
+              onSelectTrip={handleSelectTrip}
+              loading={loading}
+              selectedTripId={selectedTripId}
+            />
           )}
         </div>
 
-        {/* Desktop Layout - Hidden on mobile */}
-        <div className="d-none d-md-flex row g-2 w-100">
-          {/* Desktop Sidebar */}
-          <div className="col-lg-3 col-md-4">
-            {/* Date Range Selector (PDS users only) */}
-            {hasTrackingDevice && (
-              <div className="card mb-2">
-                <div className="card-body p-2">
-                  <div className="d-flex align-items-center mb-2">
-                    <IconCalendarStats className="icon me-2 text-primary" />
-                    <h3 className="card-title m-0">{t('common.dateRange')}</h3>
-                  </div>
-
-                  <DateRangeSelector
-                    dateFrom={dateFrom}
-                    dateTo={dateTo}
-                    onDateChange={handleDateChange}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Report Catch Button */}
-            <div className="card mb-2">
-              <div className="card-body p-2">
-                <button
-                  className="btn btn-primary w-100 d-flex align-items-center justify-content-center position-relative"
-                  onClick={handleReportCatchClick}
-                  style={{ minHeight: '45px' }}
-                >
-                  <IconFish className="me-2" size={20} />
-                  <span className="fw-bold">{t('catch.reportCatch')}</span>
-                </button>
-                <small className="text-muted mt-2 d-block text-center">
-                  {t('catch.reportFromRecentTrips')}
-                </small>
-              </div>
-            </div>
-
-            {/* Vessel Details Panel (PDS users only) */}
-            {hasTrackingDevice && (
+        {/* Vessel panels — under the date range on desktop, last on mobile */}
+        <div className="dashboard-layout__panels">
+          {hasTrackingDevice && (
+            <>
               <VesselDetailsPanel
                 liveLocations={liveLocations}
                 onCenterOnLiveLocations={centerOnLiveLocations}
               />
-            )}
-
-            {/* Vessel Insights (PDS users only) */}
-            {hasTrackingDevice && (
               <VesselInsightsPanel insights={insights} tripsCount={trips.length} />
-            )}
-          </div>
-
-          {/* Desktop Map Area */}
-          <div className="col-lg-9 col-md-8" data-map-container>
-            {isDesktopLayout && (
-            <MapContainer
-              loading={loading}
-              errorMessage={errorMessage}
-              dataAvailable={dataAvailable}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              selectedTripId={selectedTripId}
-              liveLocations={liveLocations}
-              centerOnLiveLocations={centerMapOnLiveLocations}
-              onSelectVessel={handleSelectVessel}
-              onRetry={refetchTripData}
-              waypoints={visibleWaypoints}
-              onTryWiderDateRange={() => handleDateChange(subDays(new Date(), 90), new Date())}
-              renderNoImeiDataMessage={() => renderNoImeiDataMessage(currentUser, t)}
-              isViewingLiveLocations={isViewingLiveLocations}
-              onCenterOnLiveLocations={centerOnLiveLocations}
-              isAdminMode={currentUser?.role === 'admin'}
-              adminHasNoVesselsSelected={currentUser?.role === 'admin' && (!currentUser?.imeis || currentUser.imeis.length === 0)}
-              onShowVesselSelection={handleShowBoatSelection}
-              onRefresh={handleRefresh}
-              isRefreshing={isRefreshing}
-              hasTrackingDevice={hasTrackingDevice}
-              deviceLocation={deviceLocation}
-              onGetMyLocation={getMyLocation}
-              isGettingLocation={isGettingLocation}
-              showNoTripsMessage={hasTrackingDevice && dataAvailable === false && !loading && !errorMessage && !isViewingLiveLocations}
-              onEnterWaypointMode={handleEnterWaypointMode}
-              onToggleWaypoints={handleToggleWaypointsModal}
-              waypointsCount={waypoints.length}
-              isWaypointSelectionMode={isWaypointSelectionMode}
-              onCancelWaypointMode={handleCancelWaypointMode}
-              onConfirmWaypointLocation={handleConfirmWaypointLocation}
-              centeredWaypoint={centeredWaypoint}
-            />
-            )}
-
-            {/* Trips Table - Below the map (PDS users only) */}
-            {hasTrackingDevice && (
-              <div className="mt-2">
-                <TripsTable
-                  trips={trips}
-                  onSelectTrip={handleSelectTrip}
-                  loading={loading}
-                  selectedTripId={selectedTripId}
-                />
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
 

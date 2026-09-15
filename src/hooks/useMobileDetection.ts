@@ -1,43 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useMediaQuery, MD_BREAKPOINT_PX } from './useMediaQuery';
 
-// Matches the previous `window.innerWidth <= 768` threshold exactly, but as a
-// media query: `change` fires only when the result actually flips, whereas a
-// `resize` listener fires on every tick — including the URL bar collapsing
-// during scroll on mobile.
-const MOBILE_WIDTH_QUERY = '(max-width: 768px)';
-const MOBILE_UA_PATTERN = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-
-interface UseMobileDetectionReturn {
-  isMobile: boolean;
-}
+// Evaluated once: the user agent cannot change for the life of the page.
+const IS_MOBILE_DEVICE =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
 /**
  * Whether to use touch-style interactions (tap-to-open bottom sheet) rather
  * than pointer-style ones (hover tooltip).
  *
- * Distinct from `useIsDesktopLayout`, which tracks the Bootstrap `md`
- * breakpoint that swaps the two dashboard layouts. This hook also considers the
- * user agent, so it stays true on a tablet however wide the viewport gets.
+ * Distinct from the `md` breakpoint that reshapes the dashboard grid: this hook
+ * also considers the user agent, so it stays true on a tablet however wide the
+ * viewport gets.
  */
-export const useMobileDetection = (): UseMobileDetectionReturn => {
-  const [isMobile, setIsMobile] = useState(
-    () =>
-      window.matchMedia(MOBILE_WIDTH_QUERY).matches ||
-      MOBILE_UA_PATTERN.test(navigator.userAgent)
-  );
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(MOBILE_WIDTH_QUERY);
-    const isMobileDevice = MOBILE_UA_PATTERN.test(navigator.userAgent);
-    const handleChange = (event: MediaQueryListEvent) =>
-      setIsMobile(event.matches || isMobileDevice);
-
-    // Re-sync in case the viewport changed between first render and this effect
-    setIsMobile(mediaQuery.matches || isMobileDevice);
-    mediaQuery.addEventListener('change', handleChange);
-
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  return { isMobile };
-};
+export const useMobileDetection = (): boolean =>
+  useMediaQuery(`(max-width: ${MD_BREAKPOINT_PX}px)`) || IS_MOBILE_DEVICE;

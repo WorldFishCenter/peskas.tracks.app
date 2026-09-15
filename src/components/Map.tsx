@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Map, { type MapRef } from 'react-map-gl';
 import type { Map as MapboxMap } from 'mapbox-gl';
 import DeckGL from '@deck.gl/react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchTripPoints, getDateRangeForLastDays } from '../api/pelagicDataService';
-import { getMapConfig } from '../config/mapConfig';
+import { MAP_STYLE, SHOW_ATTRIBUTION } from '../config/mapConfig';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { TripPoint, LiveLocation, ViewState, MobileTooltip, MapProps, TripPath, Waypoint } from '../types';
 import { formatPointsForLayers, calculateCenterFromPoints } from '../utils/mapData';
@@ -24,7 +24,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'YOUR_MAPBOX_TOKEN';
 
 // A usable Mapbox public token always starts with "pk.". Anything else (missing
 // var, leftover placeholder) would still mount a map that can never load a tile,
-// so we check up front and skip initialization entirely — see hasValidToken below.
+// so we check up front and skip initialization entirely.
 const hasValidToken = MAPBOX_TOKEN.startsWith('pk.');
 
 const INITIAL_VIEW_STATE: ViewState = {
@@ -65,15 +65,10 @@ const FishersMap: React.FC<MapProps> = ({
   const [tripById, setTripById] = useState<Record<string, TripPoint[]>>({});
   // Hover functionality can be added back if needed in the future
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
-  // Read once per mount: getMapConfig() builds a fresh object on every call, and
-  // passing a new object into the render path on each render buys us nothing.
-  const mapConfig = useMemo(() => getMapConfig(), []);
-  const [mapStyle] = useState(mapConfig.defaultMapStyle);
-  // Base map failures (revoked/over-quota token, bad style URL) are otherwise
-  // silent: deck.gl keeps drawing overlays over an empty canvas.
-  const [basemapError, setBasemapError] = useState<string | null>(
-    hasValidToken ? null : 'missingToken'
-  );
+  // Mapbox rejecting the token is otherwise silent: deck.gl keeps drawing
+  // overlays over an empty canvas. A missing token is known up front.
+  const [tokenRejected, setTokenRejected] = useState(false);
+  const basemapUnavailable = !hasValidToken || tokenRejected;
   const [showActivityGrid, setShowActivityGrid] = useState(false);
   const [showBathymetry, setShowBathymetry] = useState(false);
   const [bathymetryLoading, setBathymetryLoading] = useState(false);
@@ -82,17 +77,37 @@ const FishersMap: React.FC<MapProps> = ({
   // run. State makes the effects below re-run once the map actually arrives.
   const [mapInstance, setMapInstance] = useState<MapboxMap | null>(null);
 
-  // Stable identity is required: an inline ref callback is a new function every
-  // render, which makes React detach (null) and reattach it on each pass and
-  // fire setState twice per render. Memoized, it only runs when the underlying
-  // map handle actually changes.
+  // Stable identity: an inline ref callback would detach and reattach on every
+  // render, firing setState twice each pass.
   const handleMapRef = useCallback((ref: MapRef | null) => {
     setMapInstance(ref?.getMap() ?? null);
   }, []);
 
+  const handleMapLoad = useCallback(() => setTokenRejected(false), []);
+
+  const handleMapError = useCallback((evt: { error: Error }) => {
+    console.error('Mapbox base map error:', evt.error);
+    // mapbox-gl fires `error` for every non-404 tile failure, so an offline
+    // vessel or a single 5xx would otherwise latch the banner for the rest of
+    // the session. Only auth failures are fatal.
+    const status = (evt.error as { status?: number })?.status;
+    const isAuthFailure =
+      status === 401 ||
+      status === 403 ||
+      /valid Mapbox access token/i.test(evt.error?.message ?? '');
+
+    if (isAuthFailure) {
+      setTokenRejected(true);
+    }
+  }, []);
+
+  // Top-anchored notices drop below the base map warning when it is on screen.
+  // 92px clears the two-line banner at its usual width.
+  const noticeTop = basemapUnavailable ? '92px' : '10px';
+
   // Mobile-friendly tooltip state
   const [mobileTooltip, setMobileTooltip] = useState<MobileTooltip | null>(null);
-  const { isMobile } = useMobileDetection();
+  const isMobile = useMobileDetection();
 
   // Waypoint selection mode - track map center coordinates
   const [mapCenterCoordinates, setMapCenterCoordinates] = useState<{ lat: number; lng: number } | null>(null);
@@ -502,9 +517,9 @@ const FishersMap: React.FC<MapProps> = ({
         {hasValidToken && (
           <Map
             ref={handleMapRef}
-            mapStyle={mapStyle}
+            mapStyle={MAP_STYLE}
             mapboxAccessToken={MAPBOX_TOKEN}
-            attributionControl={mapConfig.showAttribution}
+            attributionControl={SHOW_ATTRIBUTION}
             trackResize={true}
             // Mapbox bills one "map load" per Map initialization, not per render,
             // pan or zoom. Reusing the instance across mount/unmount (breakpoint
@@ -512,31 +527,14 @@ const FishersMap: React.FC<MapProps> = ({
             // Trade-off: a pooled map is never destroyed, so one WebGL context
             // stays retained for the life of the page.
             reuseMaps={true}
-            onLoad={() => {
-              // Recovered — drop a warning raised by an earlier failed attempt
-              setBasemapError(prev => (prev === 'loadFailed' ? null : prev));
-            }}
-            onError={(evt) => {
-              console.error('Mapbox base map error:', evt.error);
-              // mapbox-gl fires `error` for every non-404 tile failure, so an
-              // offline vessel or a single 5xx would otherwise latch the banner
-              // for the rest of the session. Only auth failures are fatal.
-              const status = (evt.error as { status?: number })?.status;
-              const isAuthFailure =
-                status === 401 ||
-                status === 403 ||
-                /valid Mapbox access token/i.test(evt.error?.message ?? '');
-
-              if (isAuthFailure) {
-                setBasemapError('loadFailed');
-              }
-            }}
+            onLoad={handleMapLoad}
+            onError={handleMapError}
           />
         )}
       </DeckGL>
 
       {/* Base map unavailable notice — overlays sit on an empty canvas otherwise */}
-      {basemapError && (
+      {basemapUnavailable && (
         <div
           className="alert alert-warning m-0 shadow-sm"
           style={{
@@ -550,9 +548,7 @@ const FishersMap: React.FC<MapProps> = ({
         >
           <div className="fw-bold">{t('map.basemapUnavailable')}</div>
           <div className="small">
-            {basemapError === 'missingToken'
-              ? t('map.basemapTokenHint')
-              : t('map.basemapRejectedHint')}
+            {hasValidToken ? t('map.basemapRejectedHint') : t('map.basemapTokenHint')}
           </div>
         </div>
       )}
@@ -649,8 +645,7 @@ const FishersMap: React.FC<MapProps> = ({
             className="card border-0 shadow-sm d-none d-md-block"
             style={{
               position: 'absolute',
-              // Drop below the base map warning when both are on screen
-              top: basemapError ? '92px' : '10px',
+              top: noticeTop,
               left: '50%',
               transform: 'translateX(-50%)',
               zIndex: 100,
@@ -680,8 +675,7 @@ const FishersMap: React.FC<MapProps> = ({
             className="card border-0 shadow-sm d-md-none"
             style={{
               position: 'absolute',
-              // Drop below the base map warning when both are on screen
-              top: basemapError ? '92px' : '10px',
+              top: noticeTop,
               left: '10px',
               zIndex: 100,
               backgroundColor: 'rgba(var(--tblr-body-bg-rgb), 0.7)',

@@ -1,0 +1,52 @@
+/* Dashboard layout
+ *
+ * One set of mounts serves both breakpoints, so the map is instantiated exactly
+ * once — Mapbox bills per map load, and a second hidden instance is a second
+ * bill for a map nobody sees.
+ *
+ * Bootstrap's grid cannot express this layout. On mobile the map sits *between*
+ * two groups that share the desktop sidebar (the date range above it, the vessel
+ * panels below it), and stacked columns can only reorder whole columns — so a
+ * two-column version would push the map below both panels on phones. Grid
+ * template areas place the same three groups into two columns at `md` and up
+ * while source order alone drives the mobile stack.
+ *
+ * The breakpoint below must stay in sync with MD_BREAKPOINT_PX in
+ * src/hooks/useMediaQuery.ts.
+ */
+.dashboard-layout {
+  display: grid;
+  gap: 0.5rem; /* matches Bootstrap's g-2 */
+}
+
+@media (min-width: 768px) {
+  .dashboard-layout {
+    /* Mirrors the former col-md-4 / col-md-8 split */
+    grid-template-columns: 4fr 8fr;
+    grid-template-areas:
+      "controls map"
+      "panels   map";
+    /* Keep sidebar groups at the top of their row rather than stretching to
+       the height of the map, which spans both rows. */
+    align-items: start;
+  }
+
+  .dashboard-layout__controls {
+    grid-area: controls;
+  }
+
+  .dashboard-layout__map {
+    grid-area: map;
+  }
+
+  .dashboard-layout__panels {
+    grid-area: panels;
+  }
+}
+
+@media (min-width: 992px) {
+  .dashboard-layout {
+    /* Mirrors the former col-lg-3 / col-lg-9 split */
+    grid-template-columns: 3fr 9fr;
+  }
+}
