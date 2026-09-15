@@ -36,3 +36,4 @@ dist-ssr
 *.clauderules
 # Vercel
 .vercel
+.env*

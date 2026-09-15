@@ -5,25 +5,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ### Development
-- `npm run dev` - Start frontend development server (Vite)
-- `npm run dev:server` - Start backend server with auto-reload
-- `npm run dev:all` - Start both frontend and backend concurrently (recommended)
+- `npm run dev:all` - Frontend + API functions on one origin via `vercel dev` (recommended)
+- `npm run dev` - Frontend only (Vite); `/api/...` will not resolve
 - `npm run start` - Alias for dev:all
+
+Requires a one-time `npx vercel login && npx vercel link`. There is no separate
+backend process: local development runs the same functions in `api/` that
+production runs.
 
 ### Build & Deploy
 - `npm run build` - Build production version (TypeScript compilation + Vite build)
 - `npm run preview` - Preview production build locally
 - `npm run lint` - Run ESLint on codebase
+- `npm run test` - Run the Vitest suite
 
-### Server
-- `npm run server` - Run backend server in production mode
+### Diagnostics
+- `npm run db:check` - Verify MongoDB connectivity and report collection counts
+- `npm run db:explore-fishers` - Report the shape of the fisher stats collections
 
 ## Architecture
 
 ### Full-Stack Structure
 This is a full-stack application with:
 - **Frontend**: React + TypeScript + Vite
-- **Backend**: Express.js server with MongoDB authentication
+- **Backend**: Vercel serverless functions (`api/`) with MongoDB authentication
 - **UI Framework**: Tabler CSS with Bootstrap components
 - **Maps**: Mapbox GL + Deck.gl for vessel tracking visualization
 - **PWA**: Progressive Web App with service worker support
@@ -85,20 +90,19 @@ Required environment variables:
 - `VITE_PELAGIC_USERNAME`: Pelagic API username
 - `VITE_PELAGIC_PASSWORD`: Pelagic API password
 - `VITE_PELAGIC_CUSTOMER_ID`: Pelagic customer ID
-- `SERVER_PORT`: Backend server port (default: 3001)
-- `GLOBAL_PASSW`: Server-side global admin password
+- `GLOBAL_PASSW`: Global admin password read by `api/auth/login.js`
 - `DEMO_IMEI`: Demo mode IMEI (optional)
 - `DEMO_PASSWORD`: Demo mode password (optional)
 
 ### Backend API
-Express server ([server/server.js](server/server.js)) provides:
+Serverless functions in [api/](api/), served by `vercel dev` locally and by
+Vercel in production — one implementation, not two:
 - `POST /api/auth/login` - IMEI/boat name + password authentication
 - `POST /api/auth/demo-login` - Demo mode login
 - `GET /api/users` - Fetch all users/boats
 - `POST /api/catch-events` - Create catch event
 - `GET /api/catch-events/trip/:tripId` - Get catch events by trip
 - `GET /api/catch-events/user/:imei` - Get catch events by user
-- `GET /api/test-db` - Database connection test (development only)
 
 MongoDB collections:
 - `users` - User accounts with IMEI, Boat name, Community, Region
@@ -113,11 +117,10 @@ MongoDB collections:
 - **Important**: Always stick to the Tabler theme context. Avoid custom element styling unless strictly necessary.
 
 ### Development Workflow
-1. Run `npm run dev:all` to start both frontend and backend
-2. Frontend runs on Vite dev server (usually port 5173)
-3. Backend API server runs on port 3001
-4. Use ESLint for code quality: `npm run lint`
-5. TypeScript compilation is part of build process
+1. Run `npm run dev:all` to serve the frontend and the API on one origin
+2. Use ESLint for code quality: `npm run lint`
+3. Run `npm run test` for the Vitest suite
+4. TypeScript compilation is part of build process
 
 ### Production Deployment
 - Configured for Vercel deployment with serverless functions

@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\" --names \"frontend,backend\" --prefix-colors \"cyan,green\"",
-    "start": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "dev:all": "vercel dev",
+    "start": "vercel dev",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
-    "server": "node server/server.js",
-    "dev:server": "nodemon server/server.js"
+    "db:check": "node scripts/checkDatabase.js",
+    "db:explore-fishers": "node scripts/exploreFisherCollections.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
@@ -32,11 +34,9 @@
     "apache-arrow": "^17.0.0",
     "bootstrap": "^5.3.7",
     "chart.js": "^4.5.1",
-    "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "deck.gl": "^8.9.32",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2",
     "i18next": "^25.3.2",
     "i18next-browser-languagedetector": "^8.2.0",
     "mapbox-gl": "^3.10.0",
@@ -53,22 +53,21 @@
   "devDependencies": {
     "@capacitor/cli": "^7.4.4",
     "@eslint/js": "^9.21.0",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.2",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
-    "nodemon": "^3.1.9",
+    "mongodb-memory-server": "^11.2.0",
     "sharp": "^0.33.5",
     "ts-node": "^10.9.2",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.24.1",
+    "vercel": "^59.17.0",
     "vite": "^6.2.0",
-    "vite-plugin-pwa": "^0.21.1"
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^4.1.11"
   }
 }

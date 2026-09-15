@@ -51,38 +51,43 @@ A web application for viewing and analyzing vessel tracking data.
 3. Make sure you have a valid `.env` file with the required environment variables:
    ```
    VITE_MAPBOX_TOKEN=your_mapbox_token
-   VITE_MONGODB_URI=your_mongodb_connection_string
-   SERVER_PORT=3001
+   MONGODB_URI=your_mongodb_connection_string
    ```
+
+   `vercel dev` reads this file, so the same values serve the frontend and
+   the API functions.
 
 ### Running the Application
 
 #### Development Mode
 
-To run both the frontend and backend servers simultaneously:
+Local development runs the same serverless functions that production runs,
+rather than a separate Express implementation of them. That requires the
+project to be linked once:
+
+```bash
+npx vercel login
+npx vercel link
+```
+
+Then, to run the frontend and the API together:
 
 ```bash
 npm run dev:all
 ```
 
-This will:
-- Start the frontend Vite server (usually on port 5173)
-- Start the backend Express server (on port 3001)
-- Show output from both servers in a single terminal with color coding
+This serves the frontend and the functions in `api/` on a single origin, the
+way they are served in production, so `/api/...` needs no proxy.
 
-#### Running Separately
+#### Frontend Only
 
-If you prefer to run the servers separately:
+For work that does not touch the API:
 
-1. Start the backend:
-   ```bash
-   npm run dev:server
-   ```
+```bash
+npm run dev
+```
 
-2. Start the frontend (in a separate terminal):
-   ```bash
-   npm run dev
-   ```
+This runs Vite alone, so requests to `/api/...` will not resolve.
 
 ### Authentication
 
@@ -110,7 +115,6 @@ The application uses:
 
 ## Documentation
 
-- [Server Setup Guide](./SERVER_SETUP.md) - Details about the backend API server
 - [Vercel Deployment Guide](./VERCEL_DEPLOYMENT.md) - Instructions for deploying to Vercel
 - [Production Readiness Report](./PRODUCTION_READINESS_REPORT.md) - Comprehensive production readiness audit
 

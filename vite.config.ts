@@ -120,14 +120,10 @@ export default defineConfig({
       telemetry: false
     })] : [])
   ],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true
-      }
-    }
-  },
+  // No /api proxy: `vercel dev` serves the functions in api/ on the same
+  // origin as the frontend, exactly as production does. Running `vite`
+  // directly (npm run dev:frontend) therefore has no backend — use that only
+  // for work that does not touch the API.
   build: {
     outDir: 'dist',
     emptyOutDir: true,
