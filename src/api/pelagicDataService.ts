@@ -1,4 +1,5 @@
 import { format, addDays, isToday, differenceInHours } from 'date-fns';
+import type { Trip, TripPoint, LiveLocation } from '../types';
 
 // Simple request cache to avoid repeated API calls with LRU eviction
 const requestCache = new Map<string, { data: any; timestamp: number; expiry: number }>();
@@ -80,46 +81,6 @@ const setCachedData = (key: string, data: any, cacheDuration: number): void => {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://analytics.pelagicdata.com/api';
 const API_TOKEN = import.meta.env.VITE_API_TOKEN || '{$token}'; 
 const API_SECRET = import.meta.env.VITE_API_SECRET || '{$secret}';
-
-// Define types for API responses based on actual CSV format
-export interface TripPoint {
-  // Actual fields from the CSV
-  time: string;           // "2025-02-02 15:21:53+00"
-  boat: string;           // "24422"
-  tripId: string;         // "12951544"
-  latitude: number;       // -5.99924
-  longitude: number;      // 39.18637
-  speed: number;          // 0
-  range: number;          // 0.0
-  heading: number;        // 0.0
-  boatName: string;       // "Mashaallah"
-  community: string;      // "Fuji"
-  tripCreated: string;    // "2025-02-02 17:35:28+00"
-  tripUpdated: string;    // "2025-02-05 05:53:07+00"
-  
-  // For compatibility with existing code
-  timestamp: string;      // Alias for time
-  imei?: string;          // Added from request parameters
-  deviceId?: string;      // Added for compatibility
-  lastSeen?: string;      // Using tripUpdated as lastSeen
-}
-
-export interface Trip {
-  id: string;             // From trip ID in points
-  startTime: string;      // Earliest time in points
-  endTime: string;        // Latest time in points
-  boat: string;           // Boat number
-  boatName: string;       // Boat name
-  community: string;      // Community
-  durationSeconds: number; // Calculated from points
-  rangeMeters: number;    // Maximum range from points
-  distanceMeters: number; // Total distance from points
-  created: string;        // From tripCreated
-  updated: string;        // From tripUpdated
-  imei?: string;          // Added from request
-  lastSeen?: string;      // Using latest point time
-  timezone?: string;      // Device timezone for displaying local times
-}
 
 export interface TripsFilter {
   dateFrom: Date;
@@ -732,23 +693,6 @@ const authCache: {
 };
 
 /**
- * Live location data structure matching the R output
- */
-export interface LiveLocation {
-  deviceIndex: string;
-  boatName: string;
-  directCustomerName: string;
-  timezone: string;
-  lastSeen: Date | null;
-  imei: string;
-  lat: number;
-  lng: number;
-  lastGpsTs: Date | null;
-  batteryState?: string;
-  externalBoatId?: string;
-}
-
-/**
  * Authenticate with Pelagic Analytics API
  */
 const authenticate = async (): Promise<{token: string | null, refreshToken: string | null}> => {
@@ -992,28 +936,6 @@ export const formatLocationTime = (date: Date): string => {
   
   return date.toLocaleDateString();
 };
-
-/**
- * Export for backward compatibility with existing trip points API
- */
-export interface TripPoint {
-  time: string;
-  boat: string;
-  tripId: string;
-  latitude: number;
-  longitude: number;
-  speed: number;
-  range: number;
-  heading: number;
-  boatName: string;
-  community: string;
-  tripCreated: string;
-  tripUpdated: string;
-  timestamp: string;
-  imei?: string;
-  deviceId?: string;
-  lastSeen?: string;
-}
 
 /**
  * Convert LiveLocation to TripPoint format for compatibility

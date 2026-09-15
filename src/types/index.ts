@@ -1,47 +1,47 @@
 // Core data types
+//
+// These are the shapes the Pelagic Analytics API is parsed into; the comments
+// record which source field each one comes from. Declared here and nowhere
+// else — pelagicDataService imports them rather than restating them.
+
+/** One GPS fix within a trip, parsed from a row of the points CSV. */
 export interface TripPoint {
-  time: string;
-  boat: string;
-  tripId: string;
-  latitude: number;
-  longitude: number;
+  time: string;           // "2025-02-02 15:21:53+00"
+  boat: string;           // "24422"
+  tripId: string;         // "12951544"
+  latitude: number;       // -5.99924
+  longitude: number;      // 39.18637
   speed: number;
   range: number;
   heading: number;
-  boatName: string;
-  community: string;
+  boatName: string;       // "Mashaallah"
+  community: string;      // "Fuji"
   tripCreated: string;
   tripUpdated: string;
-  timestamp: string;
-  imei?: string;
+
+  // Derived rather than parsed
+  timestamp: string;      // Alias for time
+  imei?: string;          // Added from request parameters
   deviceId?: string;
-  lastSeen?: string;
-  // Additional fields for compatibility
-  batteryState?: string;
-  lastGpsTs?: string;
-  directCustomerName?: string;
-  externalBoatId?: string;
+  lastSeen?: string;      // Using tripUpdated as lastSeen
 }
 
+/** A vessel journey, built by aggregating the trip points that share a tripId. */
 export interface Trip {
-  id: string;
-  startTime: string;
-  endTime: string;
-  boat: string;
-  boatName: string;
-  community: string;
-  durationSeconds: number;
-  rangeMeters: number;
-  distanceMeters: number;
-  created: string;
-  updated: string;
-  imei?: string;
-  lastSeen?: string;
-  timezone?: string;
-  // Additional fields for compatibility
-  batteryState?: string;
-  directCustomerName?: string;
-  externalBoatId?: string;
+  id: string;              // From trip ID in points
+  startTime: string;       // Earliest time in points
+  endTime: string;         // Latest time in points
+  boat: string;            // Boat number
+  boatName: string;        // Boat name
+  community: string;       // Community
+  durationSeconds: number; // Calculated from points
+  rangeMeters: number;     // Maximum range from points
+  distanceMeters: number;  // Total distance from points
+  created: string;         // From tripCreated
+  updated: string;         // From tripUpdated
+  imei?: string;           // Added from request
+  lastSeen?: string;       // Using latest point time
+  timezone?: string;       // Device timezone, for displaying local times
 }
 
 export interface LiveLocation {

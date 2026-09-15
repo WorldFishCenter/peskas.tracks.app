@@ -10,7 +10,7 @@ import {
   PaginationState
 } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
-import { Trip } from '../api/pelagicDataService';
+import { Trip } from '../types';
 import { 
   IconChevronUp, 
   IconChevronDown, 
