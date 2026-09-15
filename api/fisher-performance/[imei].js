@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import { communityImeis } from '../_utils/fisherStats.js';
 
 // MongoDB Connection - with connection caching for serverless optimization
 const MONGODB_URI = process.env.MONGODB_URI
@@ -201,11 +202,10 @@ export default async function handler(req, res) {
       const community = user?.Community;
 
       if (community) {
-        const communityUsers = await usersCollection.find({ Community: community }).toArray();
-        const communityImeis = communityUsers.map(u => u.IMEI);
+        const imeis = await communityImeis(usersCollection, community);
 
         const communityPerformance = await performanceCollection.find({
-          imei: { $in: communityImeis, $ne: imei },
+          imei: { $in: imeis, $ne: imei },
           started: { $gte: fromDate, $lte: toDate }
         }).toArray();
 
@@ -229,7 +229,7 @@ export default async function handler(req, res) {
         const hasData = comparisonMetrics.cpue_kg_per_hour > 0 ||
                        comparisonMetrics.kg_per_liter > 0 ||
                        comparisonMetrics.search_ratio > 0;
-        comparisonLabel = hasData ? `${communityImeis.length - 1} fishers in ${community}` : '';
+        comparisonLabel = hasData ? `${imeis.length - 1} fishers in ${community}` : '';
       }
     } else if (compareWith === 'all') {
       const allPerformance = await performanceCollection.find({

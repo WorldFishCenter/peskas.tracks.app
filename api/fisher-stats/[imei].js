@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import { summariseCatchStats, catchByFishGroup, communityImeis } from '../_utils/fisherStats.js';
 
 // MongoDB Connection - with connection caching for serverless optimization
 const MONGODB_URI = process.env.MONGODB_URI
@@ -91,30 +92,15 @@ export default async function handler(req, res) {
     const userStatsQuery = { imei, date: { $gte: fromDate, $lte: toDate } };
     const userStats = await fisherStatsCollection.find(userStatsQuery).toArray();
 
-    // Calculate summary statistics
-    const totalTrips = userStats.length;
-    const successfulTrips = userStats.filter(s => s.catch_kg > 0).length;
-    const totalCatch = userStats.reduce((sum, s) => sum + (s.catch_kg || 0), 0);
-    const successRate = totalTrips > 0 ? successfulTrips / totalTrips : 0;
-    const avgCatchPerTrip = totalTrips > 0 ? totalCatch / totalTrips : 0;
+    const {
+      trips: totalTrips,
+      successfulTrips,
+      totalCatch,
+      successRate,
+      avgCatchPerTrip
+    } = summariseCatchStats(userStats);
 
-    // Group catch by fish type
-    const catchByType = {};
-    userStats.forEach(stat => {
-      if (stat.catch_kg > 0 && stat.fishGroup) {
-        if (!catchByType[stat.fishGroup]) {
-          catchByType[stat.fishGroup] = { totalKg: 0, count: 0 };
-        }
-        catchByType[stat.fishGroup].totalKg += stat.catch_kg;
-        catchByType[stat.fishGroup].count += 1;
-      }
-    });
-
-    const catchByTypeArray = Object.entries(catchByType).map(([fishGroup, data]) => ({
-      fishGroup,
-      totalKg: Math.round(data.totalKg * 10) / 10,
-      count: data.count
-    }));
+    const catchByTypeArray = catchByFishGroup(userStats);
 
     // Get recent trips (last 5)
     const recentTrips = userStats
@@ -151,24 +137,21 @@ export default async function handler(req, res) {
       const community = user?.Community;
 
       if (community) {
-        const communityUsers = await usersCollection.find({ Community: community }).toArray();
-        const communityImeis = communityUsers.map(u => u.IMEI);
+        const imeis = await communityImeis(usersCollection, community);
 
         // Get stats for community
         const communityStats = await fisherStatsCollection.find({
-          imei: { $in: communityImeis, $ne: imei }, // Exclude current user
+          imei: { $in: imeis, $ne: imei }, // Exclude current user
           date: { $gte: fromDate, $lte: toDate }
         }).toArray();
 
         if (communityStats.length > 0) {
-          const communityTotalTrips = communityStats.length;
-          const communitySuccessfulTrips = communityStats.filter(s => s.catch_kg > 0).length;
-          const communityTotalCatch = communityStats.reduce((sum, s) => sum + (s.catch_kg || 0), 0);
+          const summary = summariseCatchStats(communityStats);
 
           comparisonData = {
-            avgCatch: communityTotalTrips > 0 ? communityTotalCatch / communityTotalTrips : 0,
-            avgSuccessRate: communityTotalTrips > 0 ? communitySuccessfulTrips / communityTotalTrips : 0,
-            basedOn: `${communityImeis.length - 1} fishers in ${community}`,
+            avgCatch: summary.avgCatchPerTrip,
+            avgSuccessRate: summary.successRate,
+            basedOn: `${imeis.length - 1} fishers in ${community}`,
             hasData: true
           };
         }
@@ -181,13 +164,11 @@ export default async function handler(req, res) {
       }).toArray();
 
       if (allStats.length > 0) {
-        const allTotalTrips = allStats.length;
-        const allSuccessfulTrips = allStats.filter(s => s.catch_kg > 0).length;
-        const allTotalCatch = allStats.reduce((sum, s) => sum + (s.catch_kg || 0), 0);
+        const summary = summariseCatchStats(allStats);
 
         comparisonData = {
-          avgCatch: allTotalTrips > 0 ? allTotalCatch / allTotalTrips : 0,
-          avgSuccessRate: allTotalTrips > 0 ? allSuccessfulTrips / allTotalTrips : 0,
+          avgCatch: summary.avgCatchPerTrip,
+          avgSuccessRate: summary.successRate,
           basedOn: 'all fishers',
           hasData: true
         };
@@ -208,17 +189,15 @@ export default async function handler(req, res) {
       console.log(`Found ${previousStats.length} stats entries in previous period`);
 
       if (previousStats.length > 0) {
-        const prevTotalTrips = previousStats.length;
-        const prevSuccessfulTrips = previousStats.filter(s => s.catch_kg > 0).length;
-        const prevTotalCatch = previousStats.reduce((sum, s) => sum + (s.catch_kg || 0), 0);
+        const summary = summariseCatchStats(previousStats);
 
-        console.log(`Previous period: ${prevTotalTrips} trips, ${prevSuccessfulTrips} successful, ${prevTotalCatch} kg`);
+        console.log(`Previous period: ${summary.trips} trips, ${summary.successfulTrips} successful, ${summary.totalCatch} kg`);
 
         comparisonData = {
-          avgCatch: prevTotalTrips > 0 ? prevTotalCatch / prevTotalTrips : 0,
-          avgSuccessRate: prevTotalTrips > 0 ? prevSuccessfulTrips / prevTotalTrips : 0,
+          avgCatch: summary.avgCatchPerTrip,
+          avgSuccessRate: summary.successRate,
           basedOn: `${previousFromDate.toISOString().split('T')[0]} - ${previousToDate.toISOString().split('T')[0]}`,
-          hasData: prevTotalTrips > 0
+          hasData: summary.trips > 0
         };
       }
     }
