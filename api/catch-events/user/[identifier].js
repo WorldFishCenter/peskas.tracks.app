@@ -1,4 +1,6 @@
 import { MongoClient } from 'mongodb';
+import { resolveIdentifierCriteria } from '../../_utils/fisherIdentity.js';
+import { ValidationError } from '../../_utils/errorHandler.js';
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI
@@ -47,10 +49,6 @@ export default async function handler(req, res) {
 
   const { identifier } = req.query;
 
-  if (!identifier) {
-    return res.status(400).json({ error: 'User identifier (IMEI or username) is required' });
-  }
-
   let client;
   try {
     const connection = await connectToMongo();
@@ -60,36 +58,15 @@ export default async function handler(req, res) {
 
     console.log(`Fetching catch events for user identifier: ${identifier}`);
 
-    // First try to find events by IMEI
-    let events = await catchEventsCollection
-      .find({ imei: identifier })
+    // One query rather than probing IMEI, then looking the identifier up as a
+    // username, then querying again. The previous form only widened the search
+    // beyond IMEI if a user with that username happened to exist, so a
+    // self-registered fisher whose events were stored under their boat name
+    // could come back empty. See api/_utils/fisherIdentity.js.
+    const events = await catchEventsCollection
+      .find(resolveIdentifierCriteria(identifier))
       .sort({ reportedAt: -1 })
       .toArray();
-
-    // If no events found by IMEI, try finding user by username and get their catch events
-    // This is for non-PDS users who report catches using their username
-    if (events.length === 0) {
-      console.log(`No events found by IMEI, checking if identifier is a username`);
-
-      const usersCollection = db.collection('users');
-      const user = await usersCollection.findOne({ username: identifier });
-
-      if (user) {
-        console.log(`Found user with username: ${identifier}`);
-        // For non-PDS users, we need to search for catch events by username
-        // Since catch events might be stored with username as identifier
-        events = await catchEventsCollection
-          .find({
-            $or: [
-              { imei: identifier },
-              { username: identifier },
-              { boatName: identifier }
-            ]
-          })
-          .sort({ reportedAt: -1 })
-          .toArray();
-      }
-    }
 
     await client.close();
 
@@ -100,6 +77,13 @@ export default async function handler(req, res) {
     if (client) {
       await client.close();
     }
+
+    // A missing identifier is the caller's error, not ours: keep the 400 this
+    // endpoint returned before the check moved into fisherIdentity.
+    if (error instanceof ValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+
     console.error('Error fetching catch events:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
