@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { IconMapPin, IconX, IconTrash, IconCurrentLocation, IconClick, IconEye } from '@tabler/icons-react';
 import { Waypoint, WaypointFormData, WaypointType, GPSCoordinate } from '../../types';
 import { getAllWaypointTypeConfigs } from '../../utils/waypointConfig';
+import { useIsDarkMode } from '../../hooks/useIsDarkMode';
+import ModalShell from '../ModalShell';
 
 interface WaypointsModalProps {
   waypoints: Waypoint[];
@@ -45,40 +47,9 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const isDarkMode = useIsDarkMode();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const visibleCount = waypoints.filter(wp => wp.visible !== false).length;
-
-  // Theme detection and body scroll lock effect
-  useEffect(() => {
-    const detectTheme = () => {
-      const theme = document.documentElement.getAttribute('data-bs-theme');
-      setIsDarkMode(theme === 'dark');
-    };
-
-    detectTheme();
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
-          detectTheme();
-        }
-      });
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-bs-theme']
-    });
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      observer.disconnect();
-      document.body.style.overflow = originalOverflow;
-    };
-  }, []);
 
   // Update coordinates when selectedMapCoordinates prop changes
   useEffect(() => {
@@ -175,26 +146,11 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
   }));
 
   return (
-    <>
-      {/* Modal backdrop */}
-      <div
-        className="modal-backdrop fade show"
-        onClick={onClose}
-        style={{
-          backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)'
-        }}
-      />
-
-      {/* Modal */}
-      <div
-        className="modal modal-blur fade show"
-        style={{ display: 'block' }}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
-          <div className="modal-content">
+    <ModalShell
+      onClose={onClose}
+      dialogClassName="modal-lg modal-dialog-scrollable"
+      dismissible={!isSubmitting}
+    >
             {/* Header */}
             <div className="modal-header">
               <h5 className="modal-title">
@@ -568,10 +524,7 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
                 {t('common.close')}
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-    </>
+    </ModalShell>
   );
 };
 

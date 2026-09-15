@@ -7,6 +7,8 @@ import { format, subDays } from 'date-fns';
 import { fetchTrips } from '../api/pelagicDataService';
 import { useAuth } from '../contexts/AuthContext';
 import { anonymizeBoatName } from '../utils/demoData';
+import { useIsDarkMode } from '../hooks/useIsDarkMode';
+import ModalShell from './ModalShell';
 
 interface TripSelectionModalProps {
   onSelectTrip: (trip: Trip) => void;
@@ -26,41 +28,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Theme detection and body scroll lock effect
-  useEffect(() => {
-    const detectTheme = () => {
-      const theme = document.documentElement.getAttribute('data-bs-theme');
-      setIsDarkMode(theme === 'dark');
-    };
-    
-    // Initial detection
-    detectTheme();
-    
-    // Listen for theme changes
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
-          detectTheme();
-        }
-      });
-    });
-    
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-bs-theme']
-    });
-
-    // Prevent body scroll when modal is open
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    
-    return () => {
-      observer.disconnect();
-      document.body.style.overflow = originalOverflow;
-    };
-  }, []);
+  const isDarkMode = useIsDarkMode();
 
 
   // Fetch trips from the last 5 days (only for users with tracking devices)
@@ -162,9 +130,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
 
 
   return (
-    <div className="modal d-block" style={{ backgroundColor: isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)' }}>
-      <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-        <div className="modal-content">
+    <ModalShell onClose={onClose} dialogClassName="modal-lg modal-dialog-scrollable">
           <div className="modal-header">
             <h3 className="modal-title">
               <IconFish className="me-2" size={24} />
@@ -332,9 +298,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
               {t('common.cancel')}
             </button>
           </div>
-        </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 };
 

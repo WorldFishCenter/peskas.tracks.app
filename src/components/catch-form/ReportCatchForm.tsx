@@ -10,6 +10,8 @@ import PayloadOptimizer from '../../utils/payloadOptimizer';
 import DateSelector from './DateSelector';
 import CatchEntryForm from './CatchEntryForm';
 import CatchSummary from './CatchSummary';
+import ModalShell from '../ModalShell';
+import { useIsDarkMode } from '../../hooks/useIsDarkMode';
 import NetworkStatus from '../NetworkStatus';
 
 interface ReportCatchFormProps {
@@ -24,42 +26,10 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const isDarkMode = useIsDarkMode();
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [optimizationWarning, setOptimizationWarning] = useState<string[]>([]);
   const [submissionInProgress, setSubmissionInProgress] = useState(false);
-
-  // Theme detection and body scroll lock effect
-  useEffect(() => {
-    const detectTheme = () => {
-      const theme = document.documentElement.getAttribute('data-bs-theme');
-      setIsDarkMode(theme === 'dark');
-    };
-    
-    detectTheme();
-    
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
-          detectTheme();
-        }
-      });
-    });
-    
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-bs-theme']
-    });
-
-    // Prevent body scroll when modal is open
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    
-    return () => {
-      observer.disconnect();
-      document.body.style.overflow = originalOverflow;
-    };
-  }, []);
 
   // Check if this is a direct catch report (standalone trip)
   const isDirectCatch = trip.id.startsWith('standalone_');
@@ -297,9 +267,7 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
 
   if (success) {
     return (
-      <div className="modal d-block" style={{ backgroundColor: isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)' }}>
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content">
+      <ModalShell onClose={onClose} dismissible={false}>
             <div className="modal-body text-center p-4">
               <div className={`mb-3 ${isOfflineMode ? 'text-warning' : 'text-success'}`}>
                 {isOfflineMode ? (
@@ -326,16 +294,16 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>
+      </ModalShell>
     );
   }
 
   return (
-    <div className="modal d-block" style={{ backgroundColor: isDarkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)' }}>
-      <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl modal-fullscreen-md-down">
-        <div className="modal-content">
+    <ModalShell
+      onClose={onClose}
+      dialogClassName="modal-dialog-scrollable modal-xl modal-fullscreen-md-down"
+      dismissible={false}
+    >
           <div className="modal-header p-3 p-lg-4">
             <h3 className="modal-title">
               <IconFish className="me-2" size={24} />
@@ -547,9 +515,7 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
               )}
             </button>
           </div>
-        </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 };
 
