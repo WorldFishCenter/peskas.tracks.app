@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:all": "vercel dev",
-    "start": "vercel dev",
+    "dev:all": "vercel dev --listen 5173",
+    "start": "vercel dev --listen 5173",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",

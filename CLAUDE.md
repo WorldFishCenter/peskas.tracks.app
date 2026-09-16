@@ -13,6 +13,10 @@ Requires a one-time `npx vercel login && npx vercel link`. There is no separate
 backend process: local development runs the same functions in `api/` that
 production runs.
 
+`dev:all` pins port 5173. That is load-bearing, not cosmetic: the Mapbox token
+is URL-restricted and its allow-list covers the Vite default port and the
+production domain only, so the base map returns 403 on any other port.
+
 ### Build & Deploy
 - `npm run build` - Build production version (TypeScript compilation + Vite build)
 - `npm run preview` - Preview production build locally
