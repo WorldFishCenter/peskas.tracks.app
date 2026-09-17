@@ -1,11 +1,7 @@
 import { CatchEvent, CatchEventFormData, MultipleCatchFormData } from '../types';
 import i18n from '../i18n';
 import { isDemoMode, isAdminMode } from '../utils/demoData';
-
-
-// API URL - Use relative path to leverage Vite proxy in development
-// Vite proxy (configured in vite.config.ts) routes /api/* to localhost:3001/api/*
-const API_URL = '/api';
+import { apiFetch } from './httpClient';
 
 /**
  * Submit a catch event report (with catch outcome support)
@@ -57,12 +53,9 @@ export async function submitCatchEvent(
       })
     };
 
-    const response = await fetch(`${API_URL}/catch-events`, {
+    const response = await apiFetch('/catch-events', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
     if (!response.ok) {
@@ -136,12 +129,9 @@ export async function submitNoCatchEvent(
       isAdmin: isAdminMode()
     };
 
-    const response = await fetch(`${API_URL}/catch-events`, {
+    const response = await apiFetch('/catch-events', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
     if (!response.ok) {
@@ -162,10 +152,7 @@ export async function submitNoCatchEvent(
  */
 export async function getCatchEventsByTrip(tripId: string): Promise<CatchEvent[]> {
   try {
-    // Use Express server path style which works with Vite proxy
-    const url = `${API_URL}/catch-events/trip/${tripId}`;
-
-    const response = await fetch(url);
+    const response = await apiFetch(`/catch-events/trip/${tripId}`);
     
     if (!response.ok) {
       throw new Error(i18n.t('api.failedToFetchCatchEvents', { status: response.status }));
@@ -184,10 +171,7 @@ export async function getCatchEventsByTrip(tripId: string): Promise<CatchEvent[]
  */
 export async function getCatchEventsByUser(imei: string): Promise<CatchEvent[]> {
   try {
-    // Use Express server path style which works with Vite proxy
-    const url = `${API_URL}/catch-events/user/${imei}`;
-
-    const response = await fetch(url);
+    const response = await apiFetch(`/catch-events/user/${imei}`);
     
     if (!response.ok) {
       throw new Error(i18n.t('api.failedToFetchUserCatchEvents', { status: response.status }));

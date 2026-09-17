@@ -1,9 +1,6 @@
 import i18n from '../i18n';
 import { isDemoMode, isAdminMode } from '../utils/demoData';
-
-// API URL - Use relative path to leverage Vite proxy in development
-// Vite proxy (configured in vite.config.ts) routes /api/* to localhost:3001/api/*
-const API_URL = '/api';
+import { apiFetch } from './httpClient';
 
 export interface FeedbackSubmission {
   type: string;
@@ -70,12 +67,9 @@ export async function submitFeedback(
       isAdmin: isAdminMode()
     };
 
-    const response = await fetch(`${API_URL}/feedback`, {
+    const response = await apiFetch('/feedback', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
     if (!response.ok) {
@@ -110,7 +104,7 @@ export async function submitFeedback(
  */
 export async function getUserFeedback(userId: string): Promise<Feedback[]> {
   try {
-    const response = await fetch(`${API_URL}/feedback/user/${userId}`);
+    const response = await apiFetch(`/feedback/user/${userId}`);
 
     if (!response.ok) {
       throw new Error(i18n.t('api.failedToFetchData', { status: response.status }));

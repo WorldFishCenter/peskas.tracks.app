@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { apiFetch } from '../api/httpClient';
 import {
   IconUser,
   IconLock,
@@ -101,14 +102,9 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
     setError(null);
 
     try {
-      // Use relative path to leverage Vite proxy in development
-      // Vite proxy (configured in vite.config.ts) routes /api/* to localhost:3001/api/*
-      const response = await fetch('/api/auth/register', {
+      const response = await apiFetch('/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           username: username.trim(),
           phoneNumber: phoneNumber.trim(),
           country,
@@ -116,7 +112,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
           mainGearType,
           boatName: isBoatNameRequired ? boatName.trim() : null,
           password,
-        }),
+        },
       });
 
       const data = await response.json();

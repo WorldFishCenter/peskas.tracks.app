@@ -6,10 +6,7 @@ import {
 } from '../types';
 import i18n from '../i18n';
 import { isDemoMode } from '../utils/demoData';
-
-// API URL - Use relative path to leverage Vite proxy in development
-// Vite proxy (configured in vite.config.ts) routes /api/* to localhost:3001/api/*
-const API_URL = '/api';
+import { apiFetch } from './httpClient';
 
 /**
  * Fetch fisher catch statistics
@@ -105,21 +102,13 @@ export async function fetchFisherStats(params: FisherStatsParams): Promise<Fishe
   }
 
   try {
-    // Build query parameters
-    const queryParams = new URLSearchParams();
-    if (params.dateFrom) {
-      queryParams.append('dateFrom', params.dateFrom.toISOString());
-    }
-    if (params.dateTo) {
-      queryParams.append('dateTo', params.dateTo.toISOString());
-    }
-    if (params.compareWith) {
-      queryParams.append('compareWith', params.compareWith);
-    }
-
-    const url = `${API_URL}/fisher-stats/${params.imei}?${queryParams.toString()}`;
-
-    const response = await fetch(url);
+    const response = await apiFetch(`/fisher-stats/${params.imei}`, {
+      query: {
+        dateFrom: params.dateFrom?.toISOString(),
+        dateTo: params.dateTo?.toISOString(),
+        compareWith: params.compareWith
+      }
+    });
 
     if (!response.ok) {
       let errorMessage = i18n.t('api.failedToFetchStats', { status: response.status });
@@ -238,21 +227,13 @@ export async function fetchFisherPerformance(params: FisherPerformanceParams): P
   }
 
   try {
-    // Build query parameters
-    const queryParams = new URLSearchParams();
-    if (params.dateFrom) {
-      queryParams.append('dateFrom', params.dateFrom.toISOString());
-    }
-    if (params.dateTo) {
-      queryParams.append('dateTo', params.dateTo.toISOString());
-    }
-    if (params.compareWith) {
-      queryParams.append('compareWith', params.compareWith);
-    }
-
-    const url = `${API_URL}/fisher-performance/${params.imei}?${queryParams.toString()}`;
-
-    const response = await fetch(url);
+    const response = await apiFetch(`/fisher-performance/${params.imei}`, {
+      query: {
+        dateFrom: params.dateFrom?.toISOString(),
+        dateTo: params.dateTo?.toISOString(),
+        compareWith: params.compareWith
+      }
+    });
 
     if (!response.ok) {
       let errorMessage = i18n.t('api.failedToFetchPerformance', { status: response.status });

@@ -1,5 +1,6 @@
 import { format, addDays, isToday, differenceInHours } from 'date-fns';
 import type { Trip, TripPoint, LiveLocation } from '../types';
+import { apiFetch, externalFetch } from './httpClient';
 
 // Simple request cache to avoid repeated API calls with LRU eviction
 const requestCache = new Map<string, { data: any; timestamp: number; expiry: number }>();
@@ -141,20 +142,14 @@ export const fetchTripsFromAPI = async (filter: TripsFilter): Promise<Trip[]> =>
   }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await externalFetch(url, {
       headers: {
         'X-API-SECRET': API_SECRET,
         'Content-Type': 'application/json',
         'Accept-Encoding': 'gzip, deflate, br'
       },
-      signal: controller.signal
+      timeoutMs: 15000
     });
-
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch trips: ${response.status} ${response.statusText}`);
@@ -303,13 +298,12 @@ const fetchTripPointsForTripId = async (tripId: string, imei?: string): Promise<
   const url = `${API_BASE_URL}/${API_TOKEN}/v1/trips/${tripId}/points`;
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await externalFetch(url, {
       headers: {
         'X-API-SECRET': API_SECRET,
         'Accept': 'text/csv,*/*;q=0.8'
       },
-      signal: AbortSignal.timeout(15000)
+      timeoutMs: 15000
     });
 
     if (!response.ok) {
@@ -362,19 +356,14 @@ const fetchTripPointsViaTripsFallback = async (filter: PointsFilter): Promise<Tr
  */
 const fetchTripPointsFromLocalSnapshot = async (filter: PointsFilter): Promise<TripPoint[]> => {
   try {
-    const params = new URLSearchParams({
-      dateFrom: format(filter.dateFrom, 'yyyy-MM-dd'),
-      dateTo: format(filter.dateTo, 'yyyy-MM-dd')
-    });
-
-    if (filter.imeis && filter.imeis.length) {
-      params.set('imeis', filter.imeis.join(','));
-    }
-
-    const response = await fetch(`/api/fallback/points?${params.toString()}`, {
-      method: 'GET',
+    const response = await apiFetch('/fallback/points', {
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(10000)
+      query: {
+        dateFrom: format(filter.dateFrom, 'yyyy-MM-dd'),
+        dateTo: format(filter.dateTo, 'yyyy-MM-dd'),
+        imeis: filter.imeis && filter.imeis.length ? filter.imeis.join(',') : undefined
+      },
+      timeoutMs: 10000
     });
 
     if (!response.ok) {
@@ -446,14 +435,13 @@ export const fetchTripPoints = async (filter: PointsFilter): Promise<TripPoint[]
   }
   
   try {
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await externalFetch(url, {
       headers: {
         'X-API-SECRET': API_SECRET,
         'Content-Type': 'application/json',
         'Accept-Encoding': 'gzip, deflate, br'
       },
-      signal: AbortSignal.timeout(15000) // 15 second timeout
+      timeoutMs: 15000
     });
     
     if (!response.ok) {
@@ -712,17 +700,16 @@ const authenticate = async (): Promise<{token: string | null, refreshToken: stri
   }
   
   try {
-    const response = await fetch(`${PELAGIC_API_BASE_URL}/auth/login`, {
+    const response = await externalFetch(`${PELAGIC_API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Accept-Encoding': 'gzip, deflate, br'
       },
-      body: JSON.stringify({
+      body: {
         username: API_USERNAME,
         password: API_PASSWORD
-      }),
-      signal: AbortSignal.timeout(10000) // 10 second timeout for auth
+      },
+      timeoutMs: 10000 // 10 second timeout for auth
     });
 
     if (!response.ok) {
@@ -774,15 +761,14 @@ export const fetchLiveLocations = async (imeis?: string[]): Promise<LiveLocation
     
     console.log('📡 Fetching live locations from API');
     
-    const response = await fetch(`${PELAGIC_API_BASE_URL}/pds/devices`, {
+    const response = await externalFetch(`${PELAGIC_API_BASE_URL}/pds/devices`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'X-Authorization': `Bearer ${token}`,
         'Accept-Encoding': 'gzip, deflate, br'
       },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(15000) // 15 second timeout
+      body: requestBody,
+      timeoutMs: 15000
     });
     
     if (!response.ok) {
@@ -795,15 +781,14 @@ export const fetchLiveLocations = async (imeis?: string[]): Promise<LiveLocation
         console.log('🔑 Token expired, retrying authentication...');
         
         const { token: newToken } = await authenticate();
-        const retryResponse = await fetch(`${PELAGIC_API_BASE_URL}/pds/devices`, {
+        const retryResponse = await externalFetch(`${PELAGIC_API_BASE_URL}/pds/devices`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
             'X-Authorization': `Bearer ${newToken}`,
             'Accept-Encoding': 'gzip, deflate, br'
           },
-          body: JSON.stringify(requestBody),
-          signal: AbortSignal.timeout(15000) // 15 second timeout
+          body: requestBody,
+          timeoutMs: 15000
         });
         
         if (!retryResponse.ok) {

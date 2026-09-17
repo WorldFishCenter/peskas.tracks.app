@@ -1,16 +1,13 @@
 import { Waypoint, WaypointFormData } from '../types';
 import { isDemoMode, isAdminMode } from '../utils/demoData';
-
-// API URL - Use relative path to leverage Vite proxy in development
-const API_URL = '/api';
+import { apiFetch } from './httpClient';
 
 /**
  * Fetch all waypoints for a user
  */
 export async function fetchWaypoints(userId: string): Promise<Waypoint[]> {
   try {
-    const url = `${API_URL}/waypoints?userId=${encodeURIComponent(userId)}`;
-    const response = await fetch(url);
+    const response = await apiFetch('/waypoints', { query: { userId } });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch waypoints: ${response.status}`);
@@ -74,12 +71,9 @@ export async function createWaypoint(
       isAdmin: isAdminMode()
     };
 
-    const response = await fetch(`${API_URL}/waypoints`, {
+    const response = await apiFetch('/waypoints', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
     if (!response.ok) {
@@ -127,12 +121,9 @@ export async function updateWaypoint(
       ...data
     };
 
-    const response = await fetch(`${API_URL}/waypoints/${waypointId}`, {
+    const response = await apiFetch(`/waypoints/${waypointId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
     if (!response.ok) {
@@ -163,12 +154,10 @@ export async function deleteWaypoint(
   }
 
   try {
-    const response = await fetch(
-      `${API_URL}/waypoints/${waypointId}?userId=${encodeURIComponent(userId)}`,
-      {
-        method: 'DELETE',
-      }
-    );
+    const response = await apiFetch(`/waypoints/${waypointId}`, {
+      method: 'DELETE',
+      query: { userId },
+    });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

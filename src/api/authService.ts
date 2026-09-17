@@ -1,3 +1,5 @@
+import { apiFetch } from './httpClient';
+
 // User interfaces - matching our MongoDB structure
 export interface MongoUser {
   _id: string;
@@ -21,21 +23,14 @@ export interface AppUser {
   hasImei?: boolean;
 }
 
-// API URL - Use relative path to leverage Vite proxy in development
-// Vite proxy (configured in vite.config.ts) routes /api/* to localhost:3001/api/*
-const API_URL = '/api';
-
 /**
  * Find a user by IMEI/Boat name and password using the backend API
  */
 export async function findUserByIMEI(imei: string, password: string): Promise<AppUser | null> {
   try {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await apiFetch('/auth/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ imei, password }),
+      body: { imei, password },
     });
     
     if (!response.ok) {
@@ -58,7 +53,7 @@ export async function findUserByIMEI(imei: string, password: string): Promise<Ap
  */
 export async function getAllUsers(): Promise<MongoUser[]> {
   try {
-    const response = await fetch(`${API_URL}/users`);
+    const response = await apiFetch('/users');
     
     if (!response.ok) {
       throw new Error(`Failed to fetch users with status: ${response.status}`);

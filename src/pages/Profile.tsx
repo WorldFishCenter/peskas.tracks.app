@@ -5,6 +5,7 @@ import { IconLock, IconCheck, IconAlertTriangle, IconCalendar, IconChartBar, Ico
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { isDemoMode } from '../utils/demoData';
+import { apiFetch } from '../api/httpClient';
 
 const Profile: React.FC = () => {
   const { t } = useTranslation();
@@ -84,7 +85,7 @@ const Profile: React.FC = () => {
 
       try {
         setLoading(true);
-        const response = await fetch(`/api/users/${currentUser.id}`);
+        const response = await apiFetch(`/users/${currentUser.id}`);
 
         if (!response.ok) {
           throw new Error('Failed to load profile');
@@ -121,7 +122,7 @@ const Profile: React.FC = () => {
 
         if (!identifier) return;
 
-        const response = await fetch(`/api/catch-events/user/${identifier}`);
+        const response = await apiFetch(`/catch-events/user/${identifier}`);
 
         if (response.ok) {
           const events = await response.json();
@@ -145,18 +146,15 @@ const Profile: React.FC = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/users/${currentUser?.id}`, {
+      const response = await apiFetch(`/users/${currentUser?.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           phoneNumber: phoneNumber,
           Country: country,
           vessel_type: vesselType,
           main_gear_type: mainGearType,
           Boat: vesselType !== 'Feet' ? boatName : null,
-        }),
+        },
       });
 
       if (!response.ok) {
@@ -196,15 +194,12 @@ const Profile: React.FC = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/users/${currentUser?.id}/change-password`, {
+      const response = await apiFetch(`/users/${currentUser?.id}/change-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           currentPassword,
           newPassword,
-        }),
+        },
       });
 
       if (!response.ok) {

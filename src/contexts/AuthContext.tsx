@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { findUserByIMEI } from '../api/authService';
+import { apiFetch } from '../api/httpClient';
 import { setUser as setSentryUser } from '../lib/sentry';
 
 // Define user interface with IMEI information
@@ -113,13 +114,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       try {
         // Call the secure demo login API endpoint
-        // Use relative path to leverage Vite proxy
-        const response = await fetch('/api/auth/demo-login', {
+        const response = await apiFetch('/auth/demo-login', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}) // No credentials needed - backend handles them
+          body: {} // No credentials needed - backend handles them
         });
         
         if (!response.ok) {
