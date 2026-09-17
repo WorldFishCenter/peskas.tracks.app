@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Trip, TripPoint } from '../types';
 import { fetchTripPoints, fetchLiveLocations } from '../api/pelagicDataService';
 import { useAuth } from '../contexts/AuthContext';
+import { hasTrackingDevice } from '../utils/userInfo';
 
 interface UseTripDataReturn {
   trips: Trip[];
@@ -99,8 +100,10 @@ export const useTripData = (
       return;
     }
 
-    // Users without IMEI (self-registered users) should not call PDS APIs
-    if (currentUser.hasImei === false || (!imeis || imeis.length === 0)) {
+    // Users without IMEI (self-registered users) should not call PDS APIs.
+    // An administrator has no IMEI of their own either, so this has to be
+    // asked of the vessel they selected above, not of their account.
+    if (!hasTrackingDevice(currentUser) || !imeis || imeis.length === 0) {
       setTrips([]);
       setTripPoints([]);
       setDataAvailable(false);

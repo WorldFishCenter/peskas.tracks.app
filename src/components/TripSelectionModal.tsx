@@ -7,6 +7,7 @@ import { format, subDays } from 'date-fns';
 import { fetchTrips } from '../api/pelagicDataService';
 import { useAuth } from '../contexts/AuthContext';
 import { anonymizeBoatName } from '../utils/demoData';
+import { hasTrackingDevice } from '../utils/userInfo';
 import { useIsDarkMode } from '../hooks/useIsDarkMode';
 import ModalShell from './ModalShell';
 
@@ -23,7 +24,11 @@ interface TripsByDay {
 const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, onClose }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
-  
+
+  // An administrator has no device of their own, but reports against the
+  // vessel they have selected, so ask about that rather than their account.
+  const hasDevice = hasTrackingDevice(currentUser);
+
   // State for recent trips
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +40,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
   useEffect(() => {
     const fetchRecentTrips = async () => {
       // Skip trip fetching for users without tracking devices
-      if (currentUser?.hasImei === false) {
+      if (!hasDevice) {
         console.log('User has no tracking device, skipping trip fetch');
         setLoading(false);
         setRecentTrips([]);
@@ -69,7 +74,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
     if (currentUser) {
       fetchRecentTrips();
     }
-  }, [currentUser]);
+  }, [currentUser, hasDevice]);
 
   // Group trips by day with intuitive labels
   const tripsByDay = useMemo(() => {
@@ -145,7 +150,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
 
           <div className="modal-body">
             {/* Trip Selection Header - only show for tracking device users */}
-            {currentUser?.hasImei !== false && (
+            {hasDevice && (
               <div className="mb-4">
                 <h4 className="mb-0 d-flex align-items-center justify-content-center">
                   <IconCalendar className="me-2 text-primary" size={20} />
@@ -155,7 +160,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
             )}
 
             {/* For non-tracking users, show direct catch prompt */}
-            {currentUser?.hasImei === false && (
+            {!hasDevice && (
               <div className="empty">
                 <div className="empty-icon">
                   <IconFish size={48} className="text-primary" />
@@ -167,7 +172,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
               </div>
             )}
 
-            {currentUser?.hasImei !== false && (
+            {hasDevice && (
               <>
                 {loading ? (
                   <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
@@ -257,7 +262,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
                   <div className="col-12 col-md-8">
                     <div className="d-flex align-items-center">
                       <div>
-                        {currentUser?.hasImei === false ? (
+                        {!hasDevice ? (
                           <>
                             <h3 className="mb-1 text-primary fw-bold">{t('catch.reportYourCatch')}</h3>
                             <p className="text-muted mb-0">{t('catch.clickToContinue')}</p>

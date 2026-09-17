@@ -33,8 +33,9 @@ export const useLiveLocations = (): UseLiveLocationsReturn => {
       return;
     }
 
-    // Users without IMEI (self-registered users) should not call PDS APIs
-    if (currentUser.hasImei === false) {
+    // Users without IMEI (self-registered users) should not call PDS APIs.
+    // An administrator reaches here only with a vessel already selected.
+    if (currentUser.role !== 'admin' && currentUser.hasImei === false) {
       console.log('User has no IMEI (self-registered), skipping live locations load');
       setLiveLocations([]);
       return;

@@ -50,8 +50,11 @@ export default async function handler(req, res) {
     client = connection.client;
     const db = connection.db;
 
+    // Administrator accounts live in this collection but are not vessels, and
+    // this list feeds the vessel picker. Without the filter they show up there
+    // as blank rows: no Boat, no IMEI, nothing to track.
     const users = await db.collection('users')
-      .find({}, { projection: { password: 0 } })
+      .find({ role: { $ne: 'admin' } }, { projection: { password: 0 } })
       .toArray();
 
     await client.close();

@@ -142,7 +142,11 @@ export default async function handler(req, res) {
         name: user.Boat || user.username || `Vessel ${user.IMEI?.slice(-4) || 'Unknown'}`,
         username: user.username || null, // Include username for non-PDS users
         imeis: user.IMEI ? [user.IMEI] : [], // Empty array if no IMEI (self-registered users)
-        role: useGlobalPassword ? 'admin' : 'user', // Admin role when using global password
+        // An administrator is one whose account says so. The global password
+        // still confers admin as a fallback, kept only until every
+        // administrator holds an account of their own; see step 2 of
+        // docs/API-AUTH-PLAN.md, which retires it.
+        role: user.role === 'admin' || useGlobalPassword ? 'admin' : 'user',
         community: user.Community,
         region: user.Region,
         hasImei: user.hasImei !== false && !!user.IMEI // Use explicit flag if available, otherwise derive from IMEI

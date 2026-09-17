@@ -2,6 +2,26 @@ import { User } from '../contexts/AuthContext';
 import { TFunction } from 'i18next';
 
 /**
+ * Is there a tracking device whose data this user can be shown?
+ *
+ * A fisher answers for their own account. An administrator never has a device
+ * of their own — their account is a person, not a vessel — so the question is
+ * about the vessel they have selected instead. Ask it of the account alone and
+ * an administrator selects a boat and the app decides there is nothing to
+ * draw.
+ */
+export const hasTrackingDevice = (currentUser: User | null): boolean => {
+  if (!currentUser) return false;
+
+  if (currentUser.role === 'admin') {
+    return (currentUser.imeis?.length ?? 0) > 0;
+  }
+
+  return currentUser.hasImei === true ||
+         (currentUser.hasImei !== false && (currentUser.imeis?.length ?? 0) > 0);
+};
+
+/**
  * Render "No data" message for the specified IMEI
  */
 export const renderNoImeiDataMessage = (currentUser: User | null, t: TFunction): string => {

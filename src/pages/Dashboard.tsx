@@ -9,7 +9,7 @@ import { subDays, differenceInDays } from 'date-fns';
 import { Trip, LiveLocation, GPSCoordinate, Waypoint, WaypointFormData } from '../types';
 import { calculateVesselInsights } from '../utils/calculations';
 import { formatDisplayDate } from '../utils/formatters';
-import { renderNoImeiDataMessage } from '../utils/userInfo';
+import { renderNoImeiDataMessage, hasTrackingDevice as userHasTrackingDevice } from '../utils/userInfo';
 import { useTripData } from '../hooks/useTripData';
 import { useLiveLocations } from '../hooks/useLiveLocations';
 import { useVesselSelection } from '../hooks/useVesselSelection';
@@ -40,12 +40,9 @@ const Dashboard: React.FC = () => {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  // Check if user has tracking device (PDS)
-  // A user has a tracking device if:
-  // 1. hasImei is explicitly true, OR
-  // 2. hasImei is not explicitly false AND they have at least one IMEI
-  const hasTrackingDevice = currentUser?.hasImei === true ||
-                            (currentUser?.hasImei !== false && (currentUser?.imeis?.length ?? 0) > 0);
+  // Whether there is a device whose data we can show — for an administrator
+  // that means the vessel they have selected.
+  const hasTrackingDevice = userHasTrackingDevice(currentUser);
 
   // Catch reporting state
   const [showTripSelection, setShowTripSelection] = useState(false);
@@ -192,8 +189,10 @@ const Dashboard: React.FC = () => {
 
   // Catch reporting handlers
   const handleReportCatchClick = () => {
-    // For non-PDS users, skip trip selection and go directly to catch form
-    if (currentUser?.hasImei === false) {
+    // For non-PDS users, skip trip selection and go directly to catch form.
+    // An administrator with a vessel selected reports against that vessel's
+    // trips, so they take the ordinary path.
+    if (!hasTrackingDevice) {
       // Create a placeholder trip for direct catch reporting
       const placeholderTrip: Trip = {
         id: `standalone_${Date.now()}`,

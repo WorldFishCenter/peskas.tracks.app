@@ -169,3 +169,47 @@ describe('the global administrator password', () => {
     expect(result.body.role).toBe('user');
   });
 });
+
+describe('an administrator with an account of their own', () => {
+  beforeEach(async () => {
+    await db.collection('users').insertOne({
+      username: 'lorenzo',
+      password: 'admin-own-password',
+      role: 'admin',
+    });
+  });
+
+  it('signs in with its own password and is an admin', async () => {
+    const result = await signIn('lorenzo', 'admin-own-password');
+
+    expect(result.status).toBe(200);
+    expect(result.body.role).toBe('admin');
+    expect(result.body.username).toBe('lorenzo');
+  });
+
+  it('is a person rather than a vessel, so it carries no IMEI', async () => {
+    const result = await signIn('lorenzo', 'admin-own-password');
+
+    expect(result.body.imeis).toEqual([]);
+    expect(result.body.hasImei).toBe(false);
+  });
+
+  it('has an id of its own rather than the shared "admin"', async () => {
+    const result = await signIn('lorenzo', 'admin-own-password');
+
+    expect(result.body.id).not.toBe('admin');
+    expect(result.body.id).toMatch(/^[0-9a-f]{24}$/);
+  });
+
+  it('is refused with the wrong password, global password or not', async () => {
+    const result = await signIn('lorenzo', 'guessing');
+
+    expect(result.status).toBe(401);
+  });
+
+  it('does not lend its role to a fisher who signs in normally', async () => {
+    const result = await signIn('juma', 'other-secret');
+
+    expect(result.body.role).toBe('user');
+  });
+});

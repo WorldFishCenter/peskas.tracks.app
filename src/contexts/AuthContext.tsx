@@ -54,31 +54,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         setLoading(true);
         
-        // Check for global admin password
-        const globalPassword = import.meta.env.VITE_GLOBAL_PASSW;
-        if (password === globalPassword) {
-          // If global password matches, create an admin user with no IMEIs (they can select vessels)
-          const adminUser: User = {
-            id: 'admin',
-            name: 'Administrator',
-            role: 'admin',
-            imeis: [], // Admin users start with no IMEIs and can select any vessel
-          };
-          setCurrentUser(adminUser);
-          localStorage.setItem('currentUser', JSON.stringify(adminUser));
-
-          // Set Sentry user context
-          setSentryUser({
-            id: adminUser.id,
-            username: adminUser.name,
-            role: adminUser.role
-          });
-
-          resolve(adminUser);
-          return;
-        }
-        
-        // If not global password, try MongoDB authentication
+        // Every sign-in goes to the server, administrators included. The
+        // browser used to mint its own admin here whenever the typed password
+        // matched VITE_GLOBAL_PASSW, which gave every administrator the same
+        // id ('admin') and kept the password in the client bundle.
         const user = await findUserByIMEI(imei, password);
         
         if (user) {

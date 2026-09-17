@@ -68,6 +68,24 @@ describe('listing fishers', () => {
       expect(user).not.toHaveProperty('password');
     }
   });
+
+  // This list is what the vessel picker draws. An administrator is a person
+  // with no IMEI and no Boat, so leaving them in would put a blank,
+  // unselectable row in front of every administrator who opens it.
+  it('leaves administrator accounts out', async () => {
+    await db.collection('users').insertOne({
+      username: 'lorenzo',
+      password: 'admin-own-password',
+      role: 'admin',
+    });
+
+    const result = await callHandler(listUsers, { method: 'GET' });
+
+    expect(result.body.map((user) => user.username)).not.toContain('lorenzo');
+    expect(result.body.map((user) => user.Boat)).toEqual(
+      expect.arrayContaining(['Mashaallah', 'Welshark'])
+    );
+  });
 });
 
 describe('fetching one fisher', () => {

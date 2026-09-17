@@ -27,6 +27,20 @@ production domain only, so the base map returns 403 on any other port.
 - `npm run db:check` - Verify MongoDB connectivity and report collection counts
 - `npm run db:explore-fishers` - Report the shape of the fisher stats collections
 
+### Administrators
+- `npm run admin:create -- <username>` - Create an administrator account
+- `npm run admin:create -- --list` - List the administrators that exist
+
+An administrator is a `users` document with `role: 'admin'` and no IMEI or
+Boat: a person, not a vessel. `api/auth/login.js` reads that field, and
+`api/users.js` keeps such accounts out of the vessel picker. The script prompts
+for the password without echoing it and makes you confirm the database name
+before writing, because the usual connection string points at production.
+
+Administrators have no tracking device of their own, so ask
+`hasTrackingDevice()` in `src/utils/userInfo.ts` rather than reading `hasImei`
+directly — for an administrator the answer is about the vessel they selected.
+
 ## Architecture
 
 ### Full-Stack Structure
@@ -94,7 +108,10 @@ Required environment variables:
 - `VITE_PELAGIC_USERNAME`: Pelagic API username
 - `VITE_PELAGIC_PASSWORD`: Pelagic API password
 - `VITE_PELAGIC_CUSTOMER_ID`: Pelagic customer ID
-- `GLOBAL_PASSW`: Global admin password read by `api/auth/login.js`
+- `GLOBAL_PASSW`: Global admin password read by `api/auth/login.js`. Set in
+  Development only; administrators sign in with their own accounts. There is
+  deliberately no `VITE_` copy — a `VITE_` variable is compiled into the client
+  bundle and readable by anyone who loads the page.
 - `DEMO_IMEI`: Demo mode IMEI (optional)
 - `DEMO_PASSWORD`: Demo mode password (optional)
 
