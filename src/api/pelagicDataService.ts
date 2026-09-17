@@ -1,4 +1,4 @@
-import { format, addDays, isToday, differenceInHours } from 'date-fns';
+import { format, addDays, subDays, isToday, differenceInHours } from 'date-fns';
 import type { Trip, TripPoint, LiveLocation } from '../types';
 import { apiFetch, externalFetch } from './httpClient';
 import { isDemoMode } from '../utils/demoData';
@@ -7,6 +7,12 @@ import { fetchDemoTripPoints, fetchDemoLiveLocations } from './demoTracksService
 // Simple request cache to avoid repeated API calls with LRU eviction
 const requestCache = new Map<string, { data: any; timestamp: number; expiry: number }>();
 const MAX_CACHE_SIZE = 50; // Maximum cache entries to prevent memory leaks
+
+// Fleet-wide trip activity for the vessel picker; see fetchFleetTripActivity.
+// Kept apart from requestCache so it holds the small per-vessel summary rather
+// than thousands of trips, and is never evicted by map browsing.
+let fleetActivityCache: { data: FleetTripActivity; expiry: number } | null = null;
+let fleetActivityRequest: Promise<FleetTripActivity> | null = null;
 
 // Dynamic cache duration based on data recency
 const getCacheDuration = (dateTo: Date): number => {
@@ -28,6 +34,7 @@ const getCacheDuration = (dateTo: Date): number => {
 export const clearCache = (): void => {
   const size = requestCache.size;
   requestCache.clear();
+  fleetActivityCache = null;
   console.log(`🗑️ Cleared ${size} cached entries`);
 };
 
@@ -190,45 +197,178 @@ export const fetchTripsFromAPI = async (filter: TripsFilter): Promise<Trip[]> =>
 };
 
 /**
- * Parse trips CSV data from /v1/trips endpoint
+ * Split one CSV line into fields, honouring double quotes so that a comma
+ * inside a quoted boat or community name does not shift every later column.
  */
-const parseTripsCSV = (csvText: string): Trip[] => {
-  const lines = csvText.split('\n').filter(line => line.trim());
-  if (lines.length < 2) return []; // Need at least header + 1 data row
+const splitCsvLine = (line: string): string[] => {
+  const fields: string[] = [];
+  let field = '';
+  let quoted = false;
 
-  const trips: Trip[] = [];
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
 
-  // Skip header row
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    // CSV format from /v1/trips endpoint (based on typical Pelagic format):
-    // tripId, boatId, boatName, community, startTime, endTime, duration, distance, created, updated, lastSeen, imei
-    const parts = line.split(',');
-
-    if (parts.length >= 10) {
-      const trip: Trip = {
-        id: parts[0]?.trim() || '',
-        boat: parts[1]?.trim() || '',
-        boatName: parts[2]?.trim() || '',
-        community: parts[3]?.trim() || '',
-        startTime: parts[4]?.trim() || '',
-        endTime: parts[5]?.trim() || '',
-        durationSeconds: parseFloat(parts[6]) || 0,
-        distanceMeters: parseFloat(parts[7]) || 0,
-        rangeMeters: parseFloat(parts[7]) || 0, // Use distance as range for now
-        created: parts[8]?.trim() || '',
-        updated: parts[9]?.trim() || '',
-        lastSeen: parts.length > 10 ? parts[10]?.trim() : undefined,
-        imei: parts.length > 11 ? parts[11]?.trim() : undefined
-      };
-
-      trips.push(trip);
+    if (quoted) {
+      if (char === '"' && line[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        field += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ',') {
+      fields.push(field);
+      field = '';
+    } else {
+      field += char;
     }
   }
 
-  return trips;
+  fields.push(field);
+  return fields;
+};
+
+/**
+ * Pelagic writes timestamps as "2026-09-16 21:22:33+00". Chrome reads that,
+ * Safari does not, so rewrite it as ISO 8601 before anything hands it to
+ * `new Date()`.
+ */
+const toIsoTimestamp = (value: string): string =>
+  value.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+
+/**
+ * Parse trips CSV data from /v1/trips endpoint.
+ *
+ * Columns are found by header rather than position, because the endpoint only
+ * appends IMEI and Device Id when asked for device info:
+ * Trip,Started,Ended,Boat,Boat Name,Boat Gear,Community,Duration (Seconds),
+ * Range (Meters),Distance (Meters),Created,Updated[,IMEI,Device Id]
+ */
+export const parseTripsCSV = (csvText: string): Trip[] => {
+  const lines = csvText.split('\n').map(line => line.trim()).filter(Boolean);
+  if (lines.length < 2) return []; // Need at least header + 1 data row
+
+  const headers = splitCsvLine(lines[0]).map(header => header.trim());
+
+  return lines.slice(1)
+    .map(line => {
+      const fields = splitCsvLine(line);
+      const column = (name: string): string => {
+        const index = headers.indexOf(name);
+        return index === -1 ? '' : (fields[index] ?? '').trim();
+      };
+
+      return {
+        id: column('Trip'),
+        startTime: toIsoTimestamp(column('Started')),
+        endTime: toIsoTimestamp(column('Ended')),
+        boat: column('Boat'),
+        boatName: column('Boat Name'),
+        community: column('Community'),
+        durationSeconds: parseFloat(column('Duration (Seconds)')) || 0,
+        rangeMeters: parseFloat(column('Range (Meters)')) || 0,
+        distanceMeters: parseFloat(column('Distance (Meters)')) || 0,
+        created: toIsoTimestamp(column('Created')),
+        updated: toIsoTimestamp(column('Updated')),
+        imei: column('IMEI') || undefined
+      };
+    })
+    .filter(trip => trip.id);
+};
+
+/** How often one vessel went to sea over the recent window. */
+export interface VesselTripActivity {
+  trips: number;
+  /** When the most recent of those trips ended, as ISO 8601. */
+  lastTripEnd: string;
+}
+
+/** Trip activity keyed by IMEI. Vessels with no trips have no entry. */
+export type FleetTripActivity = Record<string, VesselTripActivity>;
+
+/** The window the vessel picker counts trips over. */
+export const TRIP_ACTIVITY_DAYS = 90;
+
+const TRIP_ACTIVITY_CACHE_MS = 30 * 60 * 1000;
+
+/**
+ * Count trips per vessel and note when each vessel's latest trip ended.
+ * Trips without an IMEI cannot be matched to a vessel and are skipped.
+ */
+export const summariseTripActivity = (trips: Trip[]): FleetTripActivity => {
+  const activity: FleetTripActivity = {};
+
+  for (const trip of trips) {
+    if (!trip.imei) continue;
+
+    const entry = activity[trip.imei] ??= { trips: 0, lastTripEnd: '' };
+    const end = trip.endTime || trip.startTime;
+
+    entry.trips += 1;
+    if (!entry.lastTripEnd || Date.parse(end) > Date.parse(entry.lastTripEnd)) {
+      entry.lastTripEnd = end;
+    }
+  }
+
+  return activity;
+};
+
+/**
+ * Trip activity for every vessel over the last TRIP_ACTIVITY_DAYS, for the
+ * administrator's vessel picker.
+ *
+ * One request answers for the whole fleet: /v1/trips without an IMEI filter
+ * returns trip summaries only, no GPS points, about 100 KB for 90 days. Asking
+ * per vessel would be hundreds of requests. The figures change slowly and the
+ * picker is reopened often, so the result is kept for half an hour, and callers
+ * that ask while a request is already out share it.
+ *
+ * Throws on failure instead of returning an empty result, which would read as
+ * "no vessel has been to sea".
+ */
+export const fetchFleetTripActivity = async (): Promise<FleetTripActivity> => {
+  // The demo never calls Pelagic, and above all never about the real fleet.
+  if (isDemoMode()) {
+    return {};
+  }
+
+  if (fleetActivityCache && Date.now() < fleetActivityCache.expiry) {
+    return fleetActivityCache.data;
+  }
+
+  if (!fleetActivityRequest) {
+    fleetActivityRequest = (async () => {
+      const today = new Date();
+      const dateFrom = format(subDays(today, TRIP_ACTIVITY_DAYS), 'yyyy-MM-dd');
+      // A day past today, as in fetchTripsFromAPI, so today's trips are not
+      // cut off by the API reading the end date as midnight UTC.
+      const dateTo = format(addDays(today, 1), 'yyyy-MM-dd');
+
+      const response = await externalFetch(
+        `${API_BASE_URL}/${API_TOKEN}/v1/trips/${dateFrom}/${dateTo}`,
+        {
+          query: { deviceInfo: true },
+          headers: { 'X-API-SECRET': API_SECRET },
+          timeoutMs: 30000
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch fleet trips: ${response.status} ${response.statusText}`);
+      }
+
+      const activity = summariseTripActivity(parseTripsCSV(await response.text()));
+      fleetActivityCache = { data: activity, expiry: Date.now() + TRIP_ACTIVITY_CACHE_MS };
+      return activity;
+    })().finally(() => {
+      fleetActivityRequest = null;
+    });
+  }
+
+  return fleetActivityRequest;
 };
 
 /**

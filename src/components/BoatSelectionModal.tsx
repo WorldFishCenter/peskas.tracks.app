@@ -1,13 +1,19 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getAllUsers, MongoUser } from '../api/authService';
+import {
+  fetchFleetTripActivity,
+  FleetTripActivity,
+  TRIP_ACTIVITY_DAYS
+} from '../api/pelagicDataService';
+import { formatTripDate } from '../utils/formatters';
 
 interface BoatSelectionModalProps {
   onSelect: (imei: string) => void;
   onClose: () => void;
 }
 
-type SortField = 'Boat' | 'IMEI' | 'captain' | 'vessel_type' | 'Community' | 'Region' | 'Country';
+type SortField = 'Boat' | 'IMEI' | 'captain' | 'vessel_type' | 'Community' | 'Region' | 'Country' | 'trips';
 type SortDir = 'asc' | 'desc';
 
 const getCountryColor = (country: string | undefined): string => {
@@ -29,6 +35,23 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('Boat');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [tripActivity, setTripActivity] = useState<FleetTripActivity | null>(null);
+  const [tripActivityFailed, setTripActivityFailed] = useState(false);
+
+  // Trip counts take a few seconds to come back for the whole fleet, so they
+  // load alongside the vessel list and fill in when ready rather than holding
+  // the table back.
+  useEffect(() => {
+    const loadTripActivity = async () => {
+      try {
+        setTripActivity(await fetchFleetTripActivity());
+      } catch (err) {
+        console.error('Error loading vessel trip counts:', err);
+        setTripActivityFailed(true);
+      }
+    };
+    loadTripActivity();
+  }, []);
 
   useEffect(() => {
     const loadBoats = async () => {
@@ -55,19 +78,34 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
       : boats;
 
     return [...filtered].sort((a, b) => {
-      const av = (a[sortField] ?? '').toLowerCase();
-      const bv = (b[sortField] ?? '').toLowerCase();
-      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      let cmp: number;
+      if (sortField === 'trips') {
+        const at = tripActivity?.[a.IMEI];
+        const bt = tripActivity?.[b.IMEI];
+        // Equal counts fall back to whichever vessel was at sea more recently.
+        cmp = ((at?.trips ?? 0) - (bt?.trips ?? 0))
+          || (Date.parse(at?.lastTripEnd ?? '') || 0) - (Date.parse(bt?.lastTripEnd ?? '') || 0);
+      } else {
+        const av = (a[sortField] ?? '').toLowerCase();
+        const bv = (b[sortField] ?? '').toLowerCase();
+        cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      }
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [boats, search, sortField, sortDir]);
+  }, [boats, search, sortField, sortDir, tripActivity]);
+
+  const activeVesselCount = useMemo(
+    () => (tripActivity ? boats.filter((b) => tripActivity[b.IMEI]).length : 0),
+    [boats, tripActivity]
+  );
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortField(field);
-      setSortDir('asc');
+      // Counts read most-first, text reads A to Z.
+      setSortDir(field === 'trips' ? 'desc' : 'asc');
     }
   };
 
@@ -80,6 +118,7 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
 
   const columns: { label: string; field: SortField }[] = [
     { label: 'Vessel Name', field: 'Boat' },
+    { label: `Trips (${TRIP_ACTIVITY_DAYS} days)`, field: 'trips' },
     { label: 'IMEI', field: 'IMEI' },
     { label: 'Captain', field: 'captain' },
     { label: 'Vessel Type', field: 'vessel_type' },
@@ -131,6 +170,9 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
                 <div className="mb-3">
                   <small className="text-muted">
                     Showing {filteredAndSorted.length} of {boats.length} vessels
+                    {tripActivity && ` · ${activeVesselCount} with trips in the last ${TRIP_ACTIVITY_DAYS} days`}
+                    {!tripActivity && !tripActivityFailed && ' · loading trip counts…'}
+                    {tripActivityFailed && ' · trip counts unavailable'}
                   </small>
                 </div>
 
@@ -161,6 +203,24 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
                           onClick={() => onSelect(boat.IMEI)}
                         >
                           <td>{boat.Boat || 'Unknown'}</td>
+                          <td className="text-nowrap">
+                            {tripActivity?.[boat.IMEI] ? (
+                              <>
+                                <span className="badge rounded-pill bg-success-subtle text-success">
+                                  {tripActivity[boat.IMEI].trips}
+                                </span>
+                                <span className="small text-muted ms-2">
+                                  {formatTripDate(tripActivity[boat.IMEI].lastTripEnd, t)}
+                                </span>
+                              </>
+                            ) : tripActivity ? (
+                              <span className="text-muted">0</span>
+                            ) : tripActivityFailed ? (
+                              <span className="text-muted">-</span>
+                            ) : (
+                              <span className="placeholder col-4" />
+                            )}
+                          </td>
                           <td><code className="text-muted small">{boat.IMEI}</code></td>
                           <td>{boat.captain || '-'}</td>
                           <td>{boat.vessel_type || '-'}</td>
