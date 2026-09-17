@@ -68,11 +68,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is stored in localStorage
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
+    try {
+      const storedUser = localStorage.getItem('currentUser');
+
+      if (storedUser && localStorage.getItem(TOKEN_KEY)) {
+        setCurrentUser(JSON.parse(storedUser));
+      } else if (storedUser) {
+        // A session saved before tokens existed. It would keep the fisher
+        // looking signed in while every request went out anonymous: fine
+        // today, and refused outright once the API requires a token — logged
+        // in, and nothing on the screen works. They never pass through the
+        // login form on their own, because the stored session satisfies this
+        // check, so the only way they acquire a token is if we drop the
+        // session and ask them to sign in once.
+        localStorage.removeItem('currentUser');
+      }
+    } catch (error) {
+      console.warn('Could not restore the session:', error);
     }
+
     setLoading(false);
   }, []);
 
