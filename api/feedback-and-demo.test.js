@@ -10,13 +10,8 @@ let db;
 let feedback;
 let demoLogin;
 
-const DEMO_IMEI = '869999999999999';
-const DEMO_PASSWORD = 'demo-pass';
-
 beforeAll(async () => {
   db = await startTestDatabase();
-  process.env.DEMO_IMEI = DEMO_IMEI;
-  process.env.DEMO_PASSWORD = DEMO_PASSWORD;
 
   feedback = (await import('./feedback.js')).default;
   demoLogin = (await import('./auth/demo-login.js')).default;
@@ -88,25 +83,49 @@ describe('sending feedback', () => {
 });
 
 describe('the demo account', () => {
-  it('signs in with the configured credentials and is marked as demo', async () => {
-    await db.collection('users').insertOne({
-      IMEI: DEMO_IMEI,
-      Boat: 'Demo Vessel',
-      password: DEMO_PASSWORD,
-      Community: 'Demo Community',
-    });
-
+  it('signs in without any account in the database, and is marked as demo', async () => {
     const result = await callHandler(demoLogin, { method: 'POST', body: {} });
 
     expect(result.status).toBe(200);
-    expect(result.body.imeis).toEqual([DEMO_IMEI]);
-    expect(JSON.stringify(result.body)).not.toContain(DEMO_PASSWORD);
+    expect(result.body).toMatchObject({ role: 'demo', isDemoMode: true, hasImei: true });
+    expect(result.body.imeis).toHaveLength(1);
   });
 
-  it('fails clearly when the demo account is missing from the database', async () => {
+  // The demo used to sign in as a real vessel, and everything it returned
+  // reached a stranger's browser. Nothing in a real users document may leak
+  // into it, even when one exists that the old code would have picked.
+  it('carries nothing from a real vessel', async () => {
+    await db.collection('users').insertOne({
+      IMEI: '869999999999999',
+      Boat: 'Mashaallah',
+      password: 'secret',
+      Community: 'Fuji',
+      Region: 'Pemba'
+    });
+    process.env.DEMO_IMEI = '869999999999999';
+    process.env.DEMO_PASSWORD = 'secret';
+
+    try {
+      const result = await callHandler(demoLogin, { method: 'POST', body: {} });
+      const body = JSON.stringify(result.body);
+
+      for (const real of ['869999999999999', 'Mashaallah', 'secret', 'Fuji', 'Pemba']) {
+        expect(body).not.toContain(real);
+      }
+    } finally {
+      delete process.env.DEMO_IMEI;
+      delete process.env.DEMO_PASSWORD;
+    }
+  });
+
+  it('never gives the demo a real IMEI to ask Pelagic about', async () => {
     const result = await callHandler(demoLogin, { method: 'POST', body: {} });
 
-    expect(result.status).toBe(401);
+    // Pelagic answers an imeis filter that is not a real IMEI with the whole
+    // fleet, so the placeholder must never be mistaken for a real one.
+    for (const imei of result.body.imeis) {
+      expect(imei).not.toMatch(/^\d+$/);
+    }
   });
 
   it('refuses anything but POST', async () => {

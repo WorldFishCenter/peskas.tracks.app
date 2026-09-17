@@ -1,6 +1,8 @@
 import { format, addDays, isToday, differenceInHours } from 'date-fns';
 import type { Trip, TripPoint, LiveLocation } from '../types';
 import { apiFetch, externalFetch } from './httpClient';
+import { isDemoMode } from '../utils/demoData';
+import { fetchDemoTripPoints, fetchDemoLiveLocations } from './demoTracksService';
 
 // Simple request cache to avoid repeated API calls with LRU eviction
 const requestCache = new Map<string, { data: any; timestamp: number; expiry: number }>();
@@ -101,6 +103,11 @@ export interface PointsFilter extends TripsFilter {
  * Returns trip summaries without all GPS points (more efficient for listing trips)
  */
 export const fetchTripsFromAPI = async (filter: TripsFilter): Promise<Trip[]> => {
+  // The demo has no trips endpoint to ask; its trips are built from its points.
+  if (isDemoMode()) {
+    return fetchTrips(filter);
+  }
+
   // Check cache first
   const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'trips');
   const cachedData = getCachedData(cacheKey);
@@ -388,6 +395,11 @@ const fetchTripPointsFromLocalSnapshot = async (filter: PointsFilter): Promise<T
  * Fetch trip points data from Pelagic Data API
  */
 export const fetchTripPoints = async (filter: PointsFilter): Promise<TripPoint[]> => {
+  // The demo replays frozen tracks rather than following a real vessel.
+  if (isDemoMode()) {
+    return fetchDemoTripPoints(filter.dateFrom, filter.dateTo);
+  }
+
   // Check cache first
   const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'points');
   const cachedData = getCachedData(cacheKey);
@@ -735,6 +747,10 @@ const authenticate = async (): Promise<{token: string | null, refreshToken: stri
  * Fetch live location data for specific devices
  */
 export const fetchLiveLocations = async (imeis?: string[]): Promise<LiveLocation[]> => {
+  if (isDemoMode()) {
+    return fetchDemoLiveLocations();
+  }
+
   // Check cache first
   const cacheKey = getGenericCacheKey('liveLocations', { imeis });
   const cachedData = getCachedData(cacheKey);

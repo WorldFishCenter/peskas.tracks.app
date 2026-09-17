@@ -808,6 +808,10 @@
       "type": "Tipo",
       "notes": "Anotações",
       "location": "Local"
+    },
+    "demo": {
+      "landingSite": "Local de desembarque",
+      "fishingGround": "Zona de pesca"
     }
   },
   "feedback": {

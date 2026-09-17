@@ -808,6 +808,10 @@
       "type": "Type",
       "notes": "Notes",
       "location": "Location"
+    },
+    "demo": {
+      "landingSite": "Landing site",
+      "fishingGround": "Fishing ground"
     }
   },
   "feedback": {

@@ -40,6 +40,17 @@ not mean you are on the dev database.
 created in one do not exist in the other. Create them where you need them:
 `MONGODB_DATABASE=portal-dev npm run admin:create -- <username>`.
 
+### Demo mode
+- `npm run demo:snapshot -- --imei <imei> --from YYYY-MM-DD --to YYYY-MM-DD` - Rebuild the demo's tracks
+
+The demo signs in as nobody and replays `public/demo/snapshot.json`: real
+tracks frozen once, with the IMEI, names, community and trip ids stripped, and
+shifted forward so the last trip always ended within the past day. It never
+calls Pelagic, and it must not — its placeholder IMEI is not a real one, and
+Pelagic answers an `imeis` filter that is not a real IMEI with the whole fleet. Run
+`npm run test` after rebuilding; a test fails if the file holds any text beyond
+what the demo needs. See [ADR 0002](docs/adr/0002-the-demo-replays-a-frozen-snapshot.md).
+
 ### Administrators
 - `npm run admin:create -- <username>` - Create an administrator account
 - `npm run admin:create -- --list` - List the administrators that exist
@@ -125,8 +136,6 @@ Required environment variables:
   Development only; administrators sign in with their own accounts. There is
   deliberately no `VITE_` copy — a `VITE_` variable is compiled into the client
   bundle and readable by anyone who loads the page.
-- `DEMO_IMEI`: Demo mode IMEI (optional)
-- `DEMO_PASSWORD`: Demo mode password (optional)
 
 ### Backend API
 Serverless functions in [api/](api/), served by `vercel dev` locally and by

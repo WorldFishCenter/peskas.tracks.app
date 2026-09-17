@@ -77,8 +77,9 @@ const Profile: React.FC = () => {
     const loadUserProfile = async () => {
       if (!currentUser) return;
 
-      // Skip profile loading for admin users - they don't have profiles
-      if (currentUser.role === 'admin') {
+      // Skip profile loading for admin users - they don't have profiles.
+      // Nor does the demo account: it exists in no database.
+      if (currentUser.role === 'admin' || isDemo) {
         setLoading(false);
         return;
       }
@@ -109,12 +110,13 @@ const Profile: React.FC = () => {
     };
 
     loadUserProfile();
-  }, [currentUser, t]);
+  }, [currentUser, isDemo, t]);
 
   // Load user statistics
   useEffect(() => {
     const loadUserStats = async () => {
-      if (!currentUser) return;
+      // The demo's catch reports are simulated and never stored.
+      if (!currentUser || isDemo) return;
 
       try {
         setStatsLoading(true);
@@ -136,7 +138,7 @@ const Profile: React.FC = () => {
     };
 
     loadUserStats();
-  }, [currentUser]);
+  }, [currentUser, isDemo]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();

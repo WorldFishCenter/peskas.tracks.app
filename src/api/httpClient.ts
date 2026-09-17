@@ -6,10 +6,11 @@
  * retry, a log line — has one edit site rather than twenty-one. This is the
  * plumbing step 1 of docs/API-AUTH-PLAN.md asks for; step 3 attaches the token.
  *
- * Two doors, and the difference is the point:
+ * Three doors, and the difference is the point:
  *
  *   apiFetch(path, …)      our own serverless functions under `/api`, same origin
  *   externalFetch(url, …)  a third party — today the Pelagic Analytics API
+ *   assetFetch(path, …)    a static file shipped in `public/`
  *
  * Anything identifying this app's user belongs on the first and never on the
  * second: a session token sent to another host is a credential handed to a
@@ -80,6 +81,15 @@ export function apiFetch(path: string, options: RequestOptions = {}): Promise<Re
  */
 export function externalFetch(url: string, options: RequestOptions = {}): Promise<Response> {
   return request(url, options);
+}
+
+/**
+ * Fetch a static file the app itself ships, from `public/`, e.g.
+ * `/demo/snapshot.json`. Same origin, but a file rather than an endpoint, so
+ * it carries no token: there is nobody on the other end to show it to.
+ */
+export function assetFetch(path: string, options: RequestOptions = {}): Promise<Response> {
+  return request(path, options);
 }
 
 function request(url: string, options: RequestOptions): Promise<Response> {
