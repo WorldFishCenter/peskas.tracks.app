@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import { identifyCaller } from '../_utils/requireFisher.js';
+import { requireFisher } from '../_utils/requireFisher.js';
 import { getDatabase } from '../_utils/mongodb.js';
 
 export default async function handler(req, res) {
@@ -17,12 +17,16 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
 
   const { userId } = req.query;
+
+  // The account named must be the caller's own. An administrator may look at
+  // anyone's, which is how the vessel picker and the profile view work.
+  if (userId && caller.role !== 'admin' && String(userId) !== String(caller.id)) {
+    return res.status(403).json({ error: 'Not yours to read' });
+  }
 
   if (!userId) {
     return res.status(400).json({ error: 'User ID is required' });

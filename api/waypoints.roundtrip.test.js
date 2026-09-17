@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { ObjectId } from 'mongodb';
-import { startTestDatabase, stopTestDatabase, callHandler } from './_utils/testHarness.js';
+import { startTestDatabase, stopTestDatabase, callHandler, signedInAs } from './_utils/testHarness.js';
 
 /**
  * Does a saved waypoint reach the database, does the fisher who saved it get
@@ -27,19 +27,26 @@ beforeEach(async () => {
 });
 
 const aWaypoint = (overrides = {}) => ({
-  userId: new ObjectId().toHexString(),
   name: 'Coral ledge',
   type: 'fishing_ground',
   coordinates: { lat: -5.99924, lng: 39.18637 },
   ...overrides,
 });
 
-const save = (body) => callHandler(waypointsHandler, { method: 'POST', body });
-const listFor = (query) => callHandler(waypointsHandler, { method: 'GET', query });
+// Whose waypoint it is comes from who is signed in, never from the request.
+const save = async (callerId, body = {}) =>
+  callHandler(waypointsHandler, {
+    method: 'POST',
+    body: aWaypoint(body),
+    headers: await signedInAs(callerId),
+  });
+
+const listFor = async (callerId) =>
+  callHandler(waypointsHandler, { method: 'GET', headers: await signedInAs(callerId) });
 
 describe('saving a waypoint', () => {
   it('writes it to the database', async () => {
-    const saved = await save(aWaypoint());
+    const saved = await save(new ObjectId());
 
     expect(saved.status).toBe(201);
 
@@ -53,10 +60,10 @@ describe('saving a waypoint', () => {
   });
 
   it('gives it back to the fisher who saved it', async () => {
-    const waypoint = aWaypoint();
-    await save(waypoint);
+    const fisher = new ObjectId();
+    await save(fisher);
 
-    const listed = await listFor({ userId: waypoint.userId });
+    const listed = await listFor(fisher);
 
     expect(listed.status).toBe(200);
     expect(listed.body).toHaveLength(1);
@@ -66,9 +73,9 @@ describe('saving a waypoint', () => {
   // The property that matters: waypoints are private, and a fisher seeing
   // someone else's would not show up on the saving fisher's own screen.
   it('does not give it to any other fisher', async () => {
-    await save(aWaypoint());
+    await save(new ObjectId());
 
-    const listed = await listFor({ userId: new ObjectId().toHexString() });
+    const listed = await listFor(new ObjectId());
 
     expect(listed.body).toEqual([]);
   });
@@ -82,7 +89,7 @@ describe('saving a waypoint', () => {
       { name: 'stored as string', userId: id.toHexString(), isPrivate: true },
     ]);
 
-    const listed = await listFor({ userId: id.toHexString() });
+    const listed = await listFor(id);
 
     expect(listed.body.map((w) => w.name).sort()).toEqual([
       'stored as ObjectId',
@@ -93,9 +100,12 @@ describe('saving a waypoint', () => {
   it('finds a waypoint by IMEI when the fisher has a tracking device', async () => {
     const id = new ObjectId();
     await db.collection('users').insertOne({ _id: id, IMEI: '861508035295419' });
-    await save(aWaypoint({ userId: id.toHexString(), imei: '861508035295419' }));
+    await save(id, { imei: '861508035295419' });
 
-    const listed = await listFor({ imei: '861508035295419' });
+    // No identifier is supplied: the server resolves the signed-in fisher to
+    // their IMEI itself, which is how records are keyed for device-tracked
+    // fishers.
+    const listed = await listFor(id);
 
     expect(listed.body).toHaveLength(1);
     expect(listed.body[0].name).toBe('Coral ledge');
@@ -104,36 +114,39 @@ describe('saving a waypoint', () => {
 
 describe('rejecting a bad waypoint', () => {
   it('refuses one with no name', async () => {
-    const saved = await save(aWaypoint({ name: undefined }));
+    const saved = await save(new ObjectId(), { name: undefined });
 
     expect(saved.status).toBe(400);
     expect(await db.collection('waypoints').countDocuments()).toBe(0);
   });
 
   it('refuses one with no coordinates', async () => {
-    const saved = await save(aWaypoint({ coordinates: undefined }));
+    const saved = await save(new ObjectId(), { coordinates: undefined });
 
     expect(saved.status).toBe(400);
     expect(await db.collection('waypoints').countDocuments()).toBe(0);
   });
 
   it('refuses coordinates outside the world', async () => {
-    const saved = await save(aWaypoint({ coordinates: { lat: 999, lng: 999 } }));
+    const saved = await save(new ObjectId(), { coordinates: { lat: 999, lng: 999 } });
 
     expect(saved.status).toBe(400);
     expect(await db.collection('waypoints').countDocuments()).toBe(0);
   });
 
   it('refuses a type outside the recorded vocabulary', async () => {
-    const saved = await save(aWaypoint({ type: 'submarine base' }));
+    const saved = await save(new ObjectId(), { type: 'submarine base' });
 
     expect(saved.status).toBe(400);
     expect(await db.collection('waypoints').countDocuments()).toBe(0);
   });
 
-  it('refuses a listing request with no identifier at all', async () => {
-    const listed = await listFor({});
+  // There is no identifier left to omit: the listing takes its subject from
+  // the token. What used to be a 400 for a missing userId is now a 401 for a
+  // caller who has not said who they are.
+  it('refuses a listing request from nobody', async () => {
+    const listed = await callHandler(waypointsHandler, { method: 'GET' });
 
-    expect(listed.status).toBe(400);
+    expect(listed.status).toBe(401);
   });
 });

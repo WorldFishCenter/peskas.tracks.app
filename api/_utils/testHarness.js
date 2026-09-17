@@ -1,5 +1,6 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { MongoClient } from 'mongodb';
+import { issueToken } from './token.js';
 
 /**
  * Exercising the serverless functions in tests.
@@ -28,6 +29,10 @@ export async function startTestDatabase() {
   mongo = await MongoMemoryServer.create();
   process.env.MONGODB_URI = mongo.getUri();
   process.env.MONGODB_DATABASE = 'portal-prod';
+
+  // The endpoints require a signed token since step 4, so a test that does not
+  // sign in gets a 401 rather than the behaviour it meant to exercise.
+  process.env.AUTH_TOKEN_SECRET ||= 'test-signing-secret';
 
   client = new MongoClient(mongo.getUri());
   await client.connect();
@@ -84,4 +89,18 @@ export async function callHandler(handler, options) {
   const { req, res, result } = mockRequest(options);
   await handler(req, res);
   return result;
+}
+
+/**
+ * The Authorization header a signed-in caller would send.
+ *
+ * Pass it as `headers` to callHandler. Tests that leave it out are testing
+ * what an anonymous caller gets, which since step 4 is a 401 — so leave it out
+ * deliberately, not by accident.
+ *
+ * @param {string|object} id the fisher's _id
+ * @param {'user'|'admin'} role
+ */
+export async function signedInAs(id, role = 'user') {
+  return { authorization: `Bearer ${await issueToken({ id: String(id), role })}` };
 }

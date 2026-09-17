@@ -1,5 +1,5 @@
 import { connectToDatabase } from './_utils/mongodb.js';
-import { identifyCaller } from './_utils/requireFisher.js';
+import { requireFisher, callerAccount } from './_utils/requireFisher.js';
 
 // Valid feedback types
 const VALID_TYPES = ['opinion', 'problem', 'suggestion', 'question', 'other'];
@@ -22,17 +22,15 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
 
   let client;
 
   try {
     // Handle POST request - Submit feedback
     if (req.method === 'POST') {
-      const { type, message, imei, username } = req.body;
+      const { type, message } = req.body;
 
       // Validate type is a string
       if (!type || typeof type !== 'string') {
@@ -64,16 +62,6 @@ export default async function handler(req, res) {
         });
       }
 
-      // Validate at least one identifier (imei or username)
-      const hasImei = imei && typeof imei === 'string' && imei.length > 0;
-      const hasUsername = username && typeof username === 'string' && username.length > 0;
-
-      if (!hasImei && !hasUsername) {
-        return res.status(400).json({
-          error: 'Either imei or username is required'
-        });
-      }
-
       // Connect to MongoDB
       const { client: mongoClient, db } = await connectToDatabase();
       client = mongoClient;
@@ -81,29 +69,15 @@ export default async function handler(req, res) {
       const feedbackCollection = db.collection('feedback');
       const usersCollection = db.collection('users');
 
-      // Get user information for additional context
-      let user = null;
-      let userId = null;
+      // Who sent it comes from the token. The body used to name its own
+      // author and set its own isAdmin flag, so any caller could file
+      // feedback against a fisher or have it filed as an administrator's.
+      const { user } = await callerAccount(caller, usersCollection);
+      const userId = user ? user._id.toString() : null;
+      const imei = user?.IMEI || null;
+      const username = user?.username || null;
 
-      if (hasImei) {
-        user = await usersCollection.findOne({ IMEI: imei });
-        if (user) {
-          userId = user._id.toString();
-        }
-      }
-
-      // If no user found by IMEI, try finding by username (for non-PDS users)
-      if (!user && hasUsername) {
-        user = await usersCollection.findOne({ username: username });
-        if (user) {
-          userId = user._id.toString();
-        }
-      }
-
-      // Detect if this is an admin user making a test submission
-      const isAdminSubmission = req.body.isAdmin === true;
-
-      console.log(`Admin submission detected: ${isAdminSubmission}`);
+      const isAdminSubmission = caller.role === 'admin';
 
       // Create feedback document
       const feedback = {

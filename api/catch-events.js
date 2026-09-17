@@ -1,4 +1,4 @@
-import { identifyCaller } from './_utils/requireFisher.js';
+import { requireFisher, callerAccount } from './_utils/requireFisher.js';
 import { getDatabase } from './_utils/mongodb.js';
 
 export default async function handler(req, res) {
@@ -16,25 +16,20 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
 
   
   try {
     // Handle POST request - Create catch event
     if (req.method === 'POST') {
-      const { tripId, date, fishGroup, quantity, imei, username, catch_outcome, photos, gps_photo } = req.body;
-      
-      // Validate required fields - at least one identifier (imei or username) must be present
-      // Note: imei or username can be explicitly null, we just need at least one to be a non-empty string
-      const hasImei = imei && typeof imei === 'string' && imei.length > 0;
-      const hasUsername = username && typeof username === 'string' && username.length > 0;
+      const { tripId, date, fishGroup, quantity, catch_outcome, photos, gps_photo } = req.body;
 
-      if (!tripId || !date || catch_outcome === undefined || (!hasImei && !hasUsername)) {
-        console.error('Validation failed:', { tripId: !!tripId, date: !!date, catch_outcome, hasImei, hasUsername });
-        return res.status(400).json({ error: 'Missing required fields: tripId, date, (imei or username), catch_outcome' });
+      // The body no longer says who is reporting, so it is no longer asked to.
+      // The token does, and a request cannot lie about it.
+      if (!tripId || !date || catch_outcome === undefined) {
+        console.error('Validation failed:', { tripId: !!tripId, date: !!date, catch_outcome });
+        return res.status(400).json({ error: 'Missing required fields: tripId, date, catch_outcome' });
       }
       
       // Validate catch_outcome
@@ -60,31 +55,21 @@ export default async function handler(req, res) {
         }
       }
       
-      const userIdentifier = imei || username;
-      console.log(`Creating catch event for trip ${tripId} by identifier ${userIdentifier}`);
+      console.log(`Creating catch event for trip ${tripId}`);
 
       // Connect to MongoDB
       const db = await getDatabase();
 
       const catchEventsCollection = db.collection('catch-events');
 
-      // Get user information for additional context
-      // Try to find user by IMEI first, then by username (for non-PDS users)
+      // Whose report this is comes from the token, not from the body. The
+      // request used to name its own author and declare its own admin status,
+      // which meant any caller could file a catch against any fisher, or have
+      // one recorded as an administrator's test.
       const usersCollection = db.collection('users');
-      let user = null;
-      
-      if (hasImei) {
-        user = await usersCollection.findOne({ IMEI: imei });
-      }
-      
-      if (!user && hasUsername) {
-        user = await usersCollection.findOne({ username: username });
-      }
+      const { user } = await callerAccount(caller, usersCollection);
 
-      // Detect if this is an admin user making a test submission
-      const isAdminSubmission = req.body.isAdmin === true;
-
-      console.log(`Admin submission detected: ${isAdminSubmission}`);
+      const isAdminSubmission = caller.role === 'admin';
 
       // Create catch event document
       const catchEvent = {
@@ -93,8 +78,8 @@ export default async function handler(req, res) {
         catch_outcome,
         // Replace admin user data with generic admin identifiers
         // Store both imei and username for proper identification
-        imei: isAdminSubmission ? 'admin' : (imei || null),
-        username: isAdminSubmission ? 'admin' : (username || user?.username || null), // Store username separately for easier querying
+        imei: isAdminSubmission ? 'admin' : (user?.IMEI || null),
+        username: isAdminSubmission ? 'admin' : (user?.username || null),
         boatName: isAdminSubmission ? 'admin' : (user?.Boat || user?.username || null),
         community: isAdminSubmission ? 'admin' : (user?.Community || null),
         reportedAt: new Date(),

@@ -1,4 +1,5 @@
 import { ObjectId } from 'mongodb';
+import { requireFisher } from '../../_utils/requireFisher.js';
 import { getDatabase } from '../../_utils/mongodb.js';
 
 export default async function handler(req, res) {
@@ -16,12 +17,17 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
+
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { userId } = req.query;
+  // Changing a password is the one thing an administrator may not do on
+  // somebody's behalf: it would take the account away from its owner.
+  const userId = caller.id;
   const { currentPassword, newPassword } = req.body;
 
   if (!userId) {

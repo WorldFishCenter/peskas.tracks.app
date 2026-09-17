@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { ObjectId } from 'mongodb';
-import { startTestDatabase, stopTestDatabase, callHandler } from './_utils/testHarness.js';
+import { startTestDatabase, stopTestDatabase, callHandler, signedInAs } from './_utils/testHarness.js';
 
 /**
  * Fisher accounts: what the app is willing to say about them, and who is
@@ -51,16 +51,24 @@ beforeEach(async () => {
   ]);
 });
 
+const anAdmin = new ObjectId();
+
 describe('listing fishers', () => {
-  it('returns the accounts', async () => {
-    const result = await callHandler(listUsers, { method: 'GET' });
+  it('returns the accounts to an administrator', async () => {
+    const result = await callHandler(listUsers, {
+      method: 'GET',
+      headers: await signedInAs(anAdmin, 'admin'),
+    });
 
     expect(result.status).toBe(200);
     expect(result.body.length).toBeGreaterThanOrEqual(2);
   });
 
   it('never returns a password', async () => {
-    const result = await callHandler(listUsers, { method: 'GET' });
+    const result = await callHandler(listUsers, {
+      method: 'GET',
+      headers: await signedInAs(anAdmin, 'admin'),
+    });
 
     expect(JSON.stringify(result.body)).not.toContain('correct-horse');
     expect(JSON.stringify(result.body)).not.toContain('other-secret');
@@ -79,7 +87,10 @@ describe('listing fishers', () => {
       role: 'admin',
     });
 
-    const result = await callHandler(listUsers, { method: 'GET' });
+    const result = await callHandler(listUsers, {
+      method: 'GET',
+      headers: await signedInAs(anAdmin, 'admin'),
+    });
 
     expect(result.body.map((user) => user.username)).not.toContain('lorenzo');
     expect(result.body.map((user) => user.Boat)).toEqual(
@@ -88,11 +99,31 @@ describe('listing fishers', () => {
   });
 });
 
+// The fleet is what the plan's first production URL exposed: 485 fishers with
+// their IMEI, community and boat, to anyone who asked.
+describe('who may list the fleet', () => {
+  it('refuses a caller who has not signed in', async () => {
+    const result = await callHandler(listUsers, { method: 'GET' });
+
+    expect(result.status).toBe(401);
+  });
+
+  it('refuses an ordinary fisher', async () => {
+    const result = await callHandler(listUsers, {
+      method: 'GET',
+      headers: await signedInAs(kitoId),
+    });
+
+    expect(result.status).toBe(403);
+  });
+});
+
 describe('fetching one fisher', () => {
   it('returns the account', async () => {
     const result = await callHandler(userById, {
       method: 'GET',
       query: { userId: kitoId.toHexString() },
+      headers: await signedInAs(kitoId),
     });
 
     expect(result.status).toBe(200);
@@ -103,6 +134,7 @@ describe('fetching one fisher', () => {
     const result = await callHandler(userById, {
       method: 'GET',
       query: { userId: kitoId.toHexString() },
+      headers: await signedInAs(kitoId),
     });
 
     expect(result.body).not.toHaveProperty('password');
@@ -110,18 +142,46 @@ describe('fetching one fisher', () => {
   });
 
   it('reports an unknown account as missing', async () => {
+    const unknown = new ObjectId();
     const result = await callHandler(userById, {
       method: 'GET',
-      query: { userId: new ObjectId().toHexString() },
+      query: { userId: unknown.toHexString() },
+      headers: await signedInAs(unknown),
     });
 
     expect(result.status).toBe(404);
   });
+
+  it('refuses a fisher asking for somebody else', async () => {
+    const result = await callHandler(userById, {
+      method: 'GET',
+      query: { userId: jumaId.toHexString() },
+      headers: await signedInAs(kitoId),
+    });
+
+    expect(result.status).toBe(403);
+  });
+
+  it('lets an administrator look at any of them', async () => {
+    const result = await callHandler(userById, {
+      method: 'GET',
+      query: { userId: jumaId.toHexString() },
+      headers: await signedInAs(anAdmin, 'admin'),
+    });
+
+    expect(result.status).toBe(200);
+  });
 });
 
 describe('changing a password', () => {
-  const change = (userId, body) =>
-    callHandler(changePassword, { method: 'POST', query: { userId }, body });
+  // The endpoint no longer takes a userId: it changes the password of whoever
+  // is signed in, so nobody can aim it at another account.
+  const change = async (userId, body) =>
+    callHandler(changePassword, {
+      method: 'POST',
+      body,
+      headers: await signedInAs(userId),
+    });
 
   const storedPassword = async (id) =>
     (await db.collection('users').findOne({ _id: id }))?.password;
@@ -179,7 +239,7 @@ describe('changing a password', () => {
   it('refuses anything but POST', async () => {
     const result = await callHandler(changePassword, {
       method: 'GET',
-      query: { userId: kitoId.toHexString() },
+      headers: await signedInAs(kitoId),
     });
 
     expect(result.status).toBe(405);

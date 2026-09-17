@@ -1,5 +1,5 @@
 import i18n from '../i18n';
-import { isDemoMode, isAdminMode } from '../utils/demoData';
+import { isDemoMode } from '../utils/demoData';
 import { apiFetch } from './httpClient';
 
 export interface FeedbackSubmission {
@@ -59,13 +59,9 @@ export async function submitFeedback(
   }
 
   try {
-    const payload = {
-      ...feedback,
-      imei,
-      username,
-      // Include admin flag to protect real data
-      isAdmin: isAdminMode()
-    };
+    // The server takes the sender and their role from the session token; a
+    // request that named its own author could name anyone's.
+    const payload = { ...feedback };
 
     const response = await apiFetch('/feedback', {
       method: 'POST',

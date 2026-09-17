@@ -1,6 +1,6 @@
 import { CatchEvent, CatchEventFormData, MultipleCatchFormData } from '../types';
 import i18n from '../i18n';
-import { isDemoMode, isAdminMode } from '../utils/demoData';
+import { isDemoMode } from '../utils/demoData';
 import { apiFetch } from './httpClient';
 
 /**
@@ -40,10 +40,6 @@ export async function submitCatchEvent(
       tripId: catchData.tripId,
       date: catchData.date.toISOString(),
       catch_outcome: catchOutcome,
-      imei,
-      username,
-      // Include admin flag to protect real data
-      isAdmin: isAdminMode(),
       // Only include fishGroup and quantity for actual catches (catch_outcome = 1)
       ...(catchOutcome === 1 && {
         fishGroup: catchData.fishGroup,
@@ -122,11 +118,7 @@ export async function submitNoCatchEvent(
     const payload = {
       tripId,
       date: date.toISOString(),
-      catch_outcome: 0,
-      imei,
-      username,
-      // Include admin flag to protect real data
-      isAdmin: isAdminMode()
+      catch_outcome: 0
     };
 
     const response = await apiFetch('/catch-events', {

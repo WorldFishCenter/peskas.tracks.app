@@ -1,13 +1,15 @@
 import { Waypoint, WaypointFormData } from '../types';
-import { isDemoMode, isAdminMode } from '../utils/demoData';
+import { isDemoMode } from '../utils/demoData';
 import { apiFetch } from './httpClient';
 
 /**
  * Fetch all waypoints for a user
  */
-export async function fetchWaypoints(userId: string): Promise<Waypoint[]> {
+export async function fetchWaypoints(): Promise<Waypoint[]> {
   try {
-    const response = await apiFetch('/waypoints', { query: { userId } });
+    // No identifier: the server knows who is asking from the session token,
+    // and would ignore one anyway. See step 4 of docs/API-AUTH-PLAN.md.
+    const response = await apiFetch('/waypoints');
 
     if (!response.ok) {
       throw new Error(`Failed to fetch waypoints: ${response.status}`);
@@ -30,6 +32,8 @@ export async function createWaypoint(
   imei?: string,
   username?: string
 ): Promise<Waypoint> {
+  // userId is still taken for the demo-mode response below; the server no
+  // longer receives it.
   // Check if we're in demo mode
   if (isDemoMode()) {
     console.log('Demo mode: simulating waypoint creation');
@@ -56,7 +60,6 @@ export async function createWaypoint(
 
   try {
     const payload = {
-      userId,
       imei: imei || null,
       username: username || null,
       name: data.name,
@@ -66,9 +69,7 @@ export async function createWaypoint(
       metadata: {
         deviceInfo: navigator.userAgent,
         accuracy: undefined
-      },
-      // Include admin flag to protect real data
-      isAdmin: isAdminMode()
+      }
     };
 
     const response = await apiFetch('/waypoints', {
@@ -97,6 +98,7 @@ export async function updateWaypoint(
   userId: string,
   data: Partial<WaypointFormData>
 ): Promise<Waypoint> {
+  // userId is still taken for the demo-mode response below.
   // Check if we're in demo mode or this is a demo waypoint
   if (isDemoMode() || waypointId.startsWith('demo-waypoint-')) {
     console.log('Demo mode: simulating waypoint update');
@@ -116,10 +118,7 @@ export async function updateWaypoint(
   }
 
   try {
-    const payload = {
-      userId,
-      ...data
-    };
+    const payload = { ...data };
 
     const response = await apiFetch(`/waypoints/${waypointId}`, {
       method: 'PUT',
@@ -146,6 +145,7 @@ export async function deleteWaypoint(
   waypointId: string,
   userId: string
 ): Promise<void> {
+  void userId; // The server takes the owner from the session token.
   // Check if we're in demo mode or this is a demo waypoint
   if (isDemoMode() || waypointId.startsWith('demo-waypoint-')) {
     console.log('Demo mode: simulating waypoint deletion');
@@ -156,7 +156,6 @@ export async function deleteWaypoint(
   try {
     const response = await apiFetch(`/waypoints/${waypointId}`, {
       method: 'DELETE',
-      query: { userId },
     });
 
     if (!response.ok) {

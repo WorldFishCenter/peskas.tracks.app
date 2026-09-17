@@ -40,7 +40,7 @@ export function useWaypoints(): UseWaypointsReturn {
     setError(null);
 
     try {
-      const data = await fetchWaypoints(currentUser.id);
+      const data = await fetchWaypoints();
       // Initialize all waypoints as visible by default
       const waypointsWithVisibility = data.map(wp => ({ ...wp, visible: wp.visible !== false }));
       setWaypoints(waypointsWithVisibility);

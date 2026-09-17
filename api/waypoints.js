@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import { identifyCaller } from './_utils/requireFisher.js';
+import { requireFisher } from './_utils/requireFisher.js';
 import { getDatabase } from './_utils/mongodb.js';
 import { corsMiddleware } from './_utils/cors.js';
 import { rateLimitMiddleware, RateLimitPresets } from './_utils/rateLimit.js';
@@ -20,10 +20,11 @@ export default async function handler(req, res) {
     return; // OPTIONS request handled
   }
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
+  // Who is calling. Everything below acts for this fisher and no other: the
+  // request no longer says whose waypoints these are, so it cannot say
+  // somebody else's.
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
 
   try {
     // Handle GET request - Get waypoints for a user
@@ -34,7 +35,10 @@ export default async function handler(req, res) {
         return res.status(rateLimit.response.status).json(rateLimit.response.body);
       }
 
-      const identifiers = sanitizeIdentifiers(req.query);
+      // From the token. A `?userId=` on the URL is now ignored — which is the
+      // whole point of step 4: there is no caller-supplied id left to
+      // substitute for somebody else's.
+      const identifiers = sanitizeIdentifiers({ userId: caller.id });
 
       // Connect to MongoDB
       const db = await getDatabase();
@@ -67,19 +71,13 @@ export default async function handler(req, res) {
 
       // Sanitize input to prevent NoSQL injection
       const sanitizedBody = sanitizeInput(req.body);
-      const { userId, imei, username, name, description, coordinates, type, metadata, isAdmin } = sanitizedBody;
+      const { imei, username, name, description, coordinates, type, metadata } = sanitizedBody;
 
-      // Detect if this is an admin user making a test submission
-      const isAdminSubmission = isAdmin === true;
-
-      console.log(`Admin submission detected: ${isAdminSubmission}`);
-
-      // Validate required fields
-      const validatedUserId = validateString(userId, {
-        minLength: 1,
-        maxLength: 100,
-        required: true
-      });
+      // Both of these used to be taken from the request body, so any caller
+      // could file a waypoint under another fisher's id, or have it recorded
+      // as an admin test submission. They come from the token now.
+      const validatedUserId = caller.id;
+      const isAdminSubmission = caller.role === 'admin';
 
       const validatedName = validateString(name, {
         minLength: 1,

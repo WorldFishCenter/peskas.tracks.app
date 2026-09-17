@@ -1,19 +1,20 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { ObjectId } from 'mongodb';
 import { startTestDatabase, stopTestDatabase, callHandler } from './_utils/testHarness.js';
+import { issueToken } from './_utils/token.js';
 
 /**
  * Can one fisher edit or delete another fisher's waypoint?
  *
- * The endpoints scope every update and delete by the caller's userId, so a
- * fisher acting as themselves is refused. That is what these lock down: a
- * refactor dropping the scoping would leave every screen looking the same,
- * and the owner would simply find a waypoint missing one day.
+ * These now prove authorization rather than merely documenting its absence.
+ * Every caller below is identified by a signed token, and the endpoints no
+ * longer read an id from the request at all — so naming the owner buys a
+ * stranger nothing, which is what step 4 of docs/API-AUTH-PLAN.md set out to
+ * achieve. The test named "even when they name the owner" is the one that
+ * used to be impossible to pass.
  *
- * They do not prove authorization. The userId is supplied by the caller and
- * nothing verifies it, so anyone naming the owner's id passes these checks.
- * Closing that is step 4 of docs/API-AUTH-PLAN.md, after which these tests
- * assert what their names claim.
+ * A refactor that reintroduced a caller-supplied id would leave every screen
+ * looking the same and quietly reopen the hole, so these run on every commit.
  */
 
 let db;
@@ -25,6 +26,7 @@ const stranger = new ObjectId();
 
 beforeAll(async () => {
   db = await startTestDatabase();
+  process.env.AUTH_TOKEN_SECRET = 'ownership-test-signing-secret';
   waypointById = (await import('./waypoints/[id].js')).default;
   waypointsHandler = (await import('./waypoints.js')).default;
 });
@@ -46,17 +48,22 @@ beforeEach(async () => {
   waypointId = insertedId;
 });
 
-const update = (userId, body = {}) =>
+/** Sign in as this fisher: what the browser would carry. */
+const as = async (id) => ({ authorization: `Bearer ${await issueToken({ id, role: 'user' })}` });
+
+const update = async (callerId, { body = {}, query = {}, headers } = {}) =>
   callHandler(waypointById, {
     method: 'PUT',
-    query: { id: waypointId.toHexString() },
-    body: { userId, name: 'Renamed', ...body },
+    query: { id: waypointId.toHexString(), ...query },
+    body: { name: 'Renamed', ...body },
+    headers: headers ?? (await as(callerId)),
   });
 
-const remove = (userId) =>
+const remove = async (callerId, { query = {}, headers } = {}) =>
   callHandler(waypointById, {
     method: 'DELETE',
-    query: { id: waypointId.toHexString(), userId },
+    query: { id: waypointId.toHexString(), ...query },
+    headers: headers ?? (await as(callerId)),
   });
 
 const stored = () => db.collection('waypoints').findOne({ _id: waypointId });
@@ -95,10 +102,85 @@ describe('any other fisher', () => {
   it('cannot see it in their own listing', async () => {
     const listed = await callHandler(waypointsHandler, {
       method: 'GET',
-      query: { userId: stranger.toHexString() },
+      headers: await as(stranger.toHexString()),
     });
 
     expect(listed.body).toEqual([]);
+  });
+});
+
+describe('a stranger who names the owner', () => {
+  // The whole of step 4 in four tests. Before it, every one of these passed
+  // for the attacker: the id came from the request, so claiming to be the
+  // owner made you the owner.
+  it('cannot rename it by putting the owner id in the body', async () => {
+    const result = await update(stranger.toHexString(), {
+      body: { userId: owner.toHexString() },
+    });
+
+    expect(result.status).not.toBe(200);
+    expect((await stored()).name).toBe('Coral ledge');
+  });
+
+  it('cannot delete it by putting the owner id in the query', async () => {
+    const result = await remove(stranger.toHexString(), {
+      query: { userId: owner.toHexString() },
+    });
+
+    expect(result.status).not.toBe(200);
+    expect(await stored()).not.toBeNull();
+  });
+
+  it('cannot list it by asking for the owner id', async () => {
+    const listed = await callHandler(waypointsHandler, {
+      method: 'GET',
+      query: { userId: owner.toHexString() },
+      headers: await as(stranger.toHexString()),
+    });
+
+    expect(listed.body).toEqual([]);
+  });
+
+  it('gets their own empty listing, not the owner\'s', async () => {
+    const listed = await callHandler(waypointsHandler, {
+      method: 'GET',
+      query: { userId: owner.toHexString() },
+      headers: await as(stranger.toHexString()),
+    });
+
+    expect(listed.status).toBe(200);
+    expect(listed.body).toEqual([]);
+  });
+});
+
+describe('a caller who proves nothing', () => {
+  it('is refused the listing', async () => {
+    const result = await callHandler(waypointsHandler, { method: 'GET' });
+
+    expect(result.status).toBe(401);
+  });
+
+  it('is refused the listing even while naming a real fisher', async () => {
+    const result = await callHandler(waypointsHandler, {
+      method: 'GET',
+      query: { userId: owner.toHexString() },
+    });
+
+    expect(result.status).toBe(401);
+  });
+
+  it('cannot delete, and the waypoint survives', async () => {
+    const result = await remove(null, { headers: {} });
+
+    expect(result.status).toBe(401);
+    expect(await stored()).not.toBeNull();
+  });
+
+  it('is refused when the token does not verify', async () => {
+    const result = await remove(null, { headers: { authorization: 'Bearer forged.token.here' } });
+
+    expect(result.status).toBe(401);
+    expect(await stored()).not.toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import { identifyCaller } from '../_utils/requireFisher.js';
+import { requireFisher } from '../_utils/requireFisher.js';
 import { getDatabase } from '../_utils/mongodb.js';
 import { corsMiddleware } from '../_utils/cors.js';
 import { rateLimitMiddleware, RateLimitPresets } from '../_utils/rateLimit.js';
@@ -19,10 +19,10 @@ export default async function handler(req, res) {
     return; // OPTIONS request handled
   }
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
+  // Ownership is scoped to this fisher, and this fisher is the one the token
+  // proves. The request no longer gets a say in whose waypoint it is editing.
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
 
   try {
     const { id } = req.query;
@@ -46,14 +46,9 @@ export default async function handler(req, res) {
 
       // Sanitize input
       const sanitizedBody = sanitizeInput(req.body);
-      const { userId, name, description, coordinates, type } = sanitizedBody;
+      const { name, description, coordinates, type } = sanitizedBody;
 
-      // Validate userId
-      const validatedUserId = validateString(userId, {
-        minLength: 1,
-        maxLength: 100,
-        required: true
-      });
+      const validatedUserId = caller.id;
 
       // Connect to MongoDB
       const db = await getDatabase();
@@ -140,14 +135,7 @@ export default async function handler(req, res) {
         return res.status(rateLimit.response.status).json(rateLimit.response.body);
       }
 
-      const { userId } = req.query;
-
-      // Validate userId
-      const validatedUserId = validateString(userId, {
-        minLength: 1,
-        maxLength: 100,
-        required: true
-      });
+      const validatedUserId = caller.id;
 
       // Connect to MongoDB
       const db = await getDatabase();

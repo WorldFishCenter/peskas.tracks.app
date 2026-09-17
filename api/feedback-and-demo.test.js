@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { startTestDatabase, stopTestDatabase, callHandler } from './_utils/testHarness.js';
+import { ObjectId } from 'mongodb';
+import { startTestDatabase, stopTestDatabase, callHandler, signedInAs } from './_utils/testHarness.js';
 
 /**
  * Two smaller features that still have to work: a fisher sending feedback,
@@ -24,19 +25,27 @@ beforeAll(async () => {
 
 afterAll(stopTestDatabase);
 
+// Feedback is attributed to whoever is signed in, so the sender must exist.
+const withDevice = new ObjectId();
+const withoutDevice = new ObjectId();
+
 beforeEach(async () => {
   await db.collection('feedback').deleteMany({});
   await db.collection('users').deleteMany({});
+  await db.collection('users').insertMany([
+    { _id: withDevice, IMEI: '861508035295419', Boat: 'Mashaallah' },
+    { _id: withoutDevice, username: 'kito', IMEI: null },
+  ]);
 });
 
 describe('sending feedback', () => {
-  const send = (body) => callHandler(feedback, { method: 'POST', body });
+  const send = async (callerId, body) =>
+    callHandler(feedback, { method: 'POST', body, headers: await signedInAs(callerId) });
 
   it('stores what the fisher wrote', async () => {
-    const result = await send({
+    const result = await send(withDevice, {
       type: 'problem',
       message: 'The map does not load on my phone',
-      imei: '861508035295419',
     });
 
     expect(result.status).toBe(201);
@@ -50,14 +59,14 @@ describe('sending feedback', () => {
   });
 
   it('accepts feedback from a fisher who has no tracking device', async () => {
-    const result = await send({ type: 'suggestion', message: 'Add Kiswahili numbers', username: 'kito' });
+    const result = await send(withoutDevice, { type: 'suggestion', message: 'Add Kiswahili numbers' });
 
     expect(result.status).toBe(201);
     expect(await db.collection('feedback').countDocuments({ username: 'kito' })).toBe(1);
   });
 
   it('refuses feedback with no message', async () => {
-    const result = await send({ type: 'problem', imei: '861508035295419' });
+    const result = await send(withDevice, { type: 'problem' });
 
     expect(result.status).toBe(400);
     expect(await db.collection('feedback').countDocuments()).toBe(0);

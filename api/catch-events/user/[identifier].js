@@ -1,4 +1,4 @@
-import { identifyCaller } from '../../_utils/requireFisher.js';
+import { requireFisher, callerAccount, mayActFor } from '../../_utils/requireFisher.js';
 import { resolveIdentifierCriteria } from '../../_utils/fisherIdentity.js';
 import { ValidationError } from '../../_utils/errorHandler.js';
 import { getDatabase } from '../../_utils/mongodb.js';
@@ -18,10 +18,8 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
 
   // Only allow GET requests
   if (req.method !== 'GET') {
@@ -33,6 +31,14 @@ export default async function handler(req, res) {
   try {
     const db = await getDatabase();
     const catchEventsCollection = db.collection('catch-events');
+
+    // The identifier still names whose events these are, because an
+    // administrator reviewing a vessel needs to name it. What has changed is
+    // that naming one you do not own is no longer enough to be given it.
+    const { identities } = await callerAccount(caller, db.collection('users'));
+    if (!mayActFor(caller, identifier, identities)) {
+      return res.status(403).json({ error: 'Not yours to read' });
+    }
 
     console.log(`Fetching catch events for user identifier: ${identifier}`);
 

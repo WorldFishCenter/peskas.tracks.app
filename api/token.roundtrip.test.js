@@ -2,14 +2,15 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { startTestDatabase, stopTestDatabase, callHandler } from './_utils/testHarness.js';
 
 /**
- * Session tokens: issued at sign-in, accepted afterwards, and required by
- * nobody yet.
+ * Session tokens: issued at sign-in, and now required.
  *
- * This is step 3 of docs/API-AUTH-PLAN.md, whose whole point is that it
- * changes nothing a caller can feel. The tests that matter most here are
- * therefore the ones asserting that requests *without* a token still work —
- * if those ever start failing, the step has quietly become step 4 and
- * somebody is locked out.
+ * These were written for step 3, when a missing token was merely recorded.
+ * Step 4 inverted them: what used to assert that anonymous callers still got
+ * their data now asserts that they are turned away. The inversion is the
+ * change, so the old expectations are kept here in the names.
+ *
+ * The last block is the one to read before deploying: with no signing secret,
+ * every request is refused. Harmless in step 3, total in step 4.
  */
 
 const SECRET = 'test-signing-secret-that-is-long-enough';
@@ -111,26 +112,40 @@ describe('calling an endpoint', () => {
     expect(result.status).toBe(200);
   });
 
-  // The three below are the heart of step 3: nothing is rejected yet.
-  it('still succeeds with no token at all', async () => {
+  // These three succeeded in step 3 and are refused in step 4. That is the
+  // whole of the change, stated three ways.
+  it('is refused with no token at all', async () => {
     const result = await waypointsFor('anyone');
 
-    expect(result.status).toBe(200);
+    expect(result.status).toBe(401);
   });
 
-  it('still succeeds with a token that does not verify', async () => {
+  it('is refused with a token that does not verify', async () => {
     const result = await waypointsFor('anyone', { authorization: 'Bearer not.a.token' });
 
-    expect(result.status).toBe(200);
+    expect(result.status).toBe(401);
   });
 
-  it('still succeeds with a malformed Authorization header', async () => {
+  it('is refused with a malformed Authorization header', async () => {
     const result = await waypointsFor('anyone', { authorization: 'Basic abc123' });
 
-    expect(result.status).toBe(200);
+    expect(result.status).toBe(401);
+  });
+
+  it('says the same thing however the caller failed', async () => {
+    const missing = await waypointsFor('anyone');
+    const invalid = await waypointsFor('anyone', { authorization: 'Bearer not.a.token' });
+
+    // Telling them which part was wrong tells them what to fix next.
+    expect(missing.body).toEqual(invalid.body);
   });
 });
 
+// Read this block before deploying anywhere. In step 3 a missing secret was
+// survivable: no tokens were issued, nothing was required, the app behaved as
+// it always had. In step 4 it locks out every caller on that deployment,
+// because a token that cannot be verified is a token that is refused — and
+// none can be issued either, so nobody can obtain one.
 describe('when no signing secret is configured', () => {
   beforeEach(() => {
     delete process.env.AUTH_TOKEN_SECRET;
@@ -140,20 +155,16 @@ describe('when no signing secret is configured', () => {
     process.env.AUTH_TOKEN_SECRET = SECRET;
   });
 
-  it('signs the fisher in anyway, without a token', async () => {
+  it('signs the fisher in, but hands them no token', async () => {
     const result = await signIn('861508035295419', 'correct-horse');
 
     expect(result.status).toBe(200);
-    expect(result.body.name).toBe('Mashaallah');
     expect(result.body.token).toBeNull();
   });
 
-  it('leaves the endpoints answering as they always did', async () => {
-    const result = await callHandler(listWaypoints, {
-      method: 'GET',
-      query: { userId: 'anyone' },
-    });
+  it('then refuses them every endpoint, because they have nothing to present', async () => {
+    const result = await callHandler(listWaypoints, { method: 'GET' });
 
-    expect(result.status).toBe(200);
+    expect(result.status).toBe(401);
   });
 });

@@ -1,4 +1,4 @@
-import { identifyCaller } from './_utils/requireFisher.js';
+import { requireFisher } from './_utils/requireFisher.js';
 import { getDatabase } from './_utils/mongodb.js';
 
 export default async function handler(req, res) {
@@ -16,10 +16,15 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
+  const caller = await requireFisher(req, res);
+  if (!caller) return;
+
+  // Every fisher's IMEI, community and boat in one response. Only the vessel
+  // picker consumes it, and only administrators see that, so a fisher has no
+  // reason to hold the fleet.
+  if (caller.role !== 'admin') {
+    return res.status(403).json({ error: 'Not yours to read' });
+  }
   
   // Only allow GET requests (after handling OPTIONS)
   if (req.method !== 'GET') {
