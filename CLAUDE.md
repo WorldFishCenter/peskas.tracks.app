@@ -293,6 +293,8 @@ Ask the user before proceeding if:
 
 ### Documentation to Reference
 
+- **Authenticating the API**: [docs/API-AUTH-PLAN.md](docs/API-AUTH-PLAN.md) — no endpoint checks who is calling; read before touching auth, admin identity, or any handler that takes a `userId`
+
 Before making changes, check:
 - **Architecture decisions**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Data flow patterns**: [docs/DATA_FLOW.md](docs/DATA_FLOW.md)

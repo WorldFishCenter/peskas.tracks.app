@@ -5,11 +5,15 @@ import { startTestDatabase, stopTestDatabase, callHandler } from './_utils/testH
 /**
  * Can one fisher edit or delete another fisher's waypoint?
  *
- * The endpoints scope every update and delete by the caller's userId, so the
- * answer is meant to be no. Nothing enforces that beyond the shape of the
- * query, and a refactor that drops the scoping would leave every screen
- * looking exactly the same — the owner would simply find a waypoint missing
- * one day. That is what these lock down.
+ * The endpoints scope every update and delete by the caller's userId, so a
+ * fisher acting as themselves is refused. That is what these lock down: a
+ * refactor dropping the scoping would leave every screen looking the same,
+ * and the owner would simply find a waypoint missing one day.
+ *
+ * They do not prove authorization. The userId is supplied by the caller and
+ * nothing verifies it, so anyone naming the owner's id passes these checks.
+ * Closing that is step 4 of docs/API-AUTH-PLAN.md, after which these tests
+ * assert what their names claim.
  */
 
 let db;
