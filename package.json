@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "db:check": "node scripts/checkDatabase.js",
     "db:explore-fishers": "node scripts/exploreFisherCollections.js",
-    "admin:create": "node scripts/createAdminAccount.js"
+    "admin:create": "node scripts/createAdminAccount.js",
+    "demo:snapshot": "node scripts/buildDemoSnapshot.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",

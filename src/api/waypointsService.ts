@@ -1,11 +1,17 @@
 import { Waypoint, WaypointFormData } from '../types';
 import { isDemoMode, isAdminMode } from '../utils/demoData';
 import { apiFetch } from './httpClient';
+import { fetchDemoWaypoints } from './demoTracksService';
 
 /**
  * Fetch all waypoints for a user
  */
 export async function fetchWaypoints(userId: string): Promise<Waypoint[]> {
+  // The demo shows places taken from its own tracks, never a real fisher's.
+  if (isDemoMode()) {
+    return fetchDemoWaypoints(userId);
+  }
+
   try {
     const response = await apiFetch('/waypoints', { query: { userId } });
 

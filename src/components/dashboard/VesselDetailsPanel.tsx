@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { LiveLocation } from '../../types';
 import { getBatteryBadgeClass } from '../../utils/colors';
 import { formatCoordinates, formatLocationTime } from '../../utils/formatters';
-import { anonymizeBoatName, isDemoMode } from '../../utils/demoData';
+import { anonymizeBoatName, anonymizeText, isDemoMode } from '../../utils/demoData';
 
 interface VesselDetailsPanelProps {
   liveLocations: LiveLocation[];
@@ -116,7 +116,7 @@ const VesselDetailsPanel: React.FC<VesselDetailsPanelProps> = ({ liveLocations, 
                     <div className="flex-fill min-width-0">
                       <div className="fw-bold text-truncate">{anonymizeBoatName(location.boatName || 'Unknown Vessel')}</div>
                       {location.directCustomerName && (
-                        <div className="text-muted small text-truncate">{location.directCustomerName}</div>
+                        <div className="text-muted small text-truncate">{anonymizeText(location.directCustomerName, 'Demo Community')}</div>
                       )}
                     </div>
                     {location.batteryState && (
@@ -174,7 +174,7 @@ const VesselDetailsPanel: React.FC<VesselDetailsPanelProps> = ({ liveLocations, 
                     <div className="flex-fill min-width-0">
                       <div className="fw-bold text-truncate">{anonymizeBoatName(location.boatName || 'Unknown Vessel')}</div>
                       {location.directCustomerName && (
-                        <div className="text-muted small text-truncate">{location.directCustomerName}</div>
+                        <div className="text-muted small text-truncate">{anonymizeText(location.directCustomerName, 'Demo Community')}</div>
                       )}
                     </div>
                     {location.batteryState && (

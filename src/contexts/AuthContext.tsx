@@ -37,6 +37,9 @@ interface AuthProviderProps {
 /** Where httpClient looks for the session token. */
 const TOKEN_KEY = 'authToken';
 
+/** The id api/auth/demo-login.js gives every demo session. */
+const DEMO_USER_ID = 'demo';
+
 /**
  * Put a signed-in user away, with the token kept apart from the user object.
  *
@@ -70,9 +73,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem('currentUser');
+      const parsedUser: User | null = storedUser ? JSON.parse(storedUser) : null;
 
-      if (storedUser && localStorage.getItem(TOKEN_KEY)) {
-        setCurrentUser(JSON.parse(storedUser));
+      if (parsedUser?.isDemoMode && parsedUser.id !== DEMO_USER_ID) {
+        // A demo session from when the demo signed in as a real vessel, still
+        // holding that vessel's IMEI and name. Nothing reads them any more,
+        // but they have no business staying in a visitor's browser.
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem(TOKEN_KEY);
+      } else if (storedUser && localStorage.getItem(TOKEN_KEY)) {
+        setCurrentUser(parsedUser);
       } else if (storedUser) {
         // A session saved before tokens existed. It would keep the fisher
         // looking signed in while every request went out anonymous: fine

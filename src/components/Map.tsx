@@ -478,6 +478,18 @@ const FishersMap: React.FC<MapProps> = ({
       <DeckGL
         viewState={viewState}
         onViewStateChange={(evt) => {
+          // deck.gl's React wrapper holds back view state changes raised while
+          // it renders and replays them afterwards. When trip points arrive
+          // quickly — a cached response, or the demo's snapshot — that replay
+          // carries the view the map was created with and lands after we have
+          // centred on the points, sending the map back to the Zanzibar default.
+          // Every genuine change comes from an interaction or a transition and
+          // says so; the replay says neither.
+          const { isDragging, isPanning, isRotating, isZooming, inTransition } = evt.interactionState;
+          if (!isDragging && !isPanning && !isRotating && !isZooming && !inTransition) {
+            return;
+          }
+
           const newViewState = evt.viewState as ViewState;
           setViewState({
             longitude: newViewState.longitude,

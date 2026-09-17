@@ -808,6 +808,10 @@
       "type": "Aina",
       "notes": "Maelezo",
       "location": "Eneo"
+    },
+    "demo": {
+      "landingSite": "Mwalo",
+      "fishingGround": "Eneo la uvuvi"
     }
   },
   "feedback": {
