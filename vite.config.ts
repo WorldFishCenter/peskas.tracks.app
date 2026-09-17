@@ -124,6 +124,21 @@ export default defineConfig({
   // origin as the frontend, exactly as production does. Running `vite`
   // directly (npm run dev:frontend) therefore has no backend — use that only
   // for work that does not touch the API.
+  server: {
+    // `vercel dev` owns port 5173 and starts Vite on a random internal port,
+    // then proxies HTTP to it. It does not carry the WebSocket upgrade across
+    // that hop, so hot reload has nowhere to connect: the browser is told to
+    // reach an internal port that changes on every run, and gives up with
+    // "failed to connect to websocket".
+    //
+    // Giving hot reload a fixed port of its own sidesteps the proxy — the
+    // browser connects to it directly while the page itself stays on 5173,
+    // which is the port the Mapbox token is restricted to.
+    hmr: {
+      host: 'localhost',
+      port: 24678
+    }
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

@@ -12,7 +12,7 @@ import './styles/main.scss'
 import { initSentry } from './lib/sentry'
 
 // Initialize offline support
-import { initializeOfflineSupport, registerServiceWorkerForOfflineSupport } from './utils/initializeOfflineSupport'
+import { initializeOfflineSupport, registerServiceWorkerForOfflineSupport, unregisterServiceWorkers } from './utils/initializeOfflineSupport'
 
 // Initialize Sentry as early as possible
 initSentry();
@@ -26,9 +26,22 @@ html.setAttribute('data-bs-theme-radius', '1.5');
 // Initialize offline support and service worker
 const initializeApp = async () => {
   try {
-    // Register service worker first
-    await registerServiceWorkerForOfflineSupport();
-    
+    if (import.meta.env.PROD) {
+      // Register service worker first
+      await registerServiceWorkerForOfflineSupport();
+    } else {
+      // Not in development. `vercel dev` serves the built dist/ alongside
+      // Vite, so /sw.js answers with the service worker from the last
+      // production build. Registering it here puts that worker in charge of
+      // the dev page, where it tries to serve a precache of hashed filenames
+      // the dev server has never heard of — the console fills with "Failed to
+      // fetch" and the page is served from a stale build.
+      //
+      // A worker registered by an earlier run stays bound to this origin, so
+      // clear any that is already there rather than only declining to add one.
+      await unregisterServiceWorkers();
+    }
+
     // Then initialize offline storage
     await initializeOfflineSupport();
     

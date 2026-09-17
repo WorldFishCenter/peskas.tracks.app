@@ -63,6 +63,35 @@ export const registerServiceWorkerForOfflineSupport = async () => {
   }
 };
 
+// Remove any service worker holding this origin, and the caches it filled.
+// Used in development, where a worker left over from a production build serves
+// a precache of files the dev server does not have.
+export const unregisterServiceWorkers = async () => {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    if (registrations.length === 0) {
+      return;
+    }
+
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+
+    // The registration going away does not empty the caches it created, and a
+    // stale precache would still be there for the next worker to adopt.
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+
+    console.log(`🧹 Removed ${registrations.length} service worker(s) left over from a build`);
+  } catch (error) {
+    console.warn('Could not remove existing service workers:', error);
+  }
+};
+
 // Trigger manual sync with service worker
 export const triggerManualSync = async () => {
   if ('serviceWorker' in navigator) {
