@@ -81,19 +81,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, pageHeader, stickyFoo
               <div className="d-sm-none">
                 <h1 className="h3 mb-0 fw-bold">PESKAS</h1>
                 <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  2.8 {isDemoMode() && <span className="text-warning fw-bold">DEMO</span>}
+                  2.9 {isDemoMode() && <span className="text-warning fw-bold">DEMO</span>}
                 </div>
               </div>
               <div className="d-none d-sm-block d-md-none">
                 <h1 className="h3 mb-0 fw-bold">PESKAS</h1>
                 <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  Portal 2.8 {isDemoMode() && <span className="text-warning fw-bold">DEMO</span>}
+                  Portal 2.9 {isDemoMode() && <span className="text-warning fw-bold">DEMO</span>}
                 </div>
               </div>
               <div className="d-none d-md-block">
                 <h1 className="h2 mb-0 fw-bold">PESKAS</h1>
                 <div className="h4 text-muted mb-0">
-                  Fishers Tracking Portal <span style={{ fontSize: '0.75rem' }}>2.8</span>
+                  Fishers Tracking Portal <span style={{ fontSize: '0.75rem' }}>2.9</span>
                   {isDemoMode() && <span className="text-warning fw-bold ms-2" style={{ fontSize: '1rem' }}>DEMO</span>}
                 </div>
               </div>
