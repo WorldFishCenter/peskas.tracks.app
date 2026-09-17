@@ -1,33 +1,8 @@
-import { MongoClient } from 'mongodb';
 import { identifyCaller } from '../../_utils/requireFisher.js';
 import { resolveIdentifierCriteria } from '../../_utils/fisherIdentity.js';
 import { ValidationError } from '../../_utils/errorHandler.js';
+import { getDatabase } from '../../_utils/mongodb.js';
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI
-  ? process.env.MONGODB_URI.replace(/^"|"$/g, '')
-  : '';
-
-async function connectToMongo() {
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not set');
-  }
-
-  if (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://')) {
-    console.error('Invalid MongoDB URI format:', MONGODB_URI);
-    throw new Error('Invalid MongoDB URI format. Must start with mongodb:// or mongodb+srv://');
-  }
-
-  const client = new MongoClient(MONGODB_URI, {
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-  });
-
-  await client.connect();
-  return { client, db: client.db('portal-prod') };
-}
-
-// Serverless function handler for fetching user catch events
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -55,11 +30,8 @@ export default async function handler(req, res) {
 
   const { identifier } = req.query;
 
-  let client;
   try {
-    const connection = await connectToMongo();
-    client = connection.client;
-    const db = connection.db;
+    const db = await getDatabase();
     const catchEventsCollection = db.collection('catch-events');
 
     console.log(`Fetching catch events for user identifier: ${identifier}`);
@@ -74,15 +46,11 @@ export default async function handler(req, res) {
       .sort({ reportedAt: -1 })
       .toArray();
 
-    await client.close();
 
     console.log(`Found ${events.length} catch events for identifier: ${identifier}`);
     return res.status(200).json(events);
 
   } catch (error) {
-    if (client) {
-      await client.close();
-    }
 
     // A missing identifier is the caller's error, not ours: keep the 400 this
     // endpoint returned before the check moved into fisherIdentity.

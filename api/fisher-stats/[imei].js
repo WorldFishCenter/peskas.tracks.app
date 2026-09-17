@@ -1,47 +1,5 @@
-import { MongoClient } from 'mongodb';
 import { summariseCatchStats, catchByFishGroup, communityImeis } from '../_utils/fisherStats.js';
-
-// MongoDB Connection - with connection caching for serverless optimization
-const MONGODB_URI = process.env.MONGODB_URI
-  ? process.env.MONGODB_URI.replace(/^"(.*)"$/, '$1')
-  : '';
-
-let cachedClient = null;
-let cachedDb = null;
-
-async function connectToMongo() {
-  if (cachedDb) {
-    return cachedDb;
-  }
-
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not set');
-  }
-
-  if (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://')) {
-    console.error('Invalid MongoDB URI format');
-    throw new Error('Invalid MongoDB URI format. Must start with mongodb:// or mongodb+srv://');
-  }
-
-  const client = new MongoClient(MONGODB_URI, {
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-  });
-
-  try {
-    await client.connect();
-    console.log('MongoDB connection successful for fisher-stats');
-    const db = client.db('portal-prod');
-
-    cachedClient = client;
-    cachedDb = db;
-
-    return db;
-  } catch (error) {
-    console.error('MongoDB connection error:', error.message);
-    throw new Error(`Database connection failed: ${error.message}`);
-  }
-}
+import { getDatabase } from '../_utils/mongodb.js';
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -68,7 +26,7 @@ export default async function handler(req, res) {
 
     console.log(`Fetching fisher stats for IMEI: ${imei}, dateFrom: ${dateFrom}, dateTo: ${dateTo}, compareWith: ${compareWith}`);
 
-    const db = await connectToMongo();
+    const db = await getDatabase();
     if (!db) {
       return res.status(500).json({ error: 'Database connection error' });
     }

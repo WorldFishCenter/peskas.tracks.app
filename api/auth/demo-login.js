@@ -1,40 +1,10 @@
-import { MongoClient } from 'mongodb';
 import { issueToken } from '../_utils/token.js';
+import { getDatabase } from '../_utils/mongodb.js';
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI 
-  ? process.env.MONGODB_URI.replace(/^"|"$/g, '')
-  : '';
-
-// Demo credentials (must be configured via environment variables)
+// Demo credentials, held server-side so they never reach the browser.
 const DEMO_IMEI = process.env.DEMO_IMEI;
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD;
 
-async function connectToMongo() {
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not set');
-  }
-  
-  if (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://')) {
-    console.error('Invalid MongoDB URI format:', MONGODB_URI);
-    throw new Error('Invalid MongoDB URI format. Must start with mongodb:// or mongodb+srv://');
-  }
-  
-  const client = new MongoClient(MONGODB_URI, {
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-  });
-  
-  try {
-    await client.connect();
-    return { client, db: client.db('portal-prod') };
-  } catch (error) {
-    console.error('Error connecting to MongoDB:', error);
-    throw error;
-  }
-}
-
-// Serverless function handler for demo login
 export default async function handler(req, res) {
   // Set CORS headers FIRST (before any method checks)
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -65,11 +35,8 @@ export default async function handler(req, res) {
     }
     
     // Connect to MongoDB and authenticate with demo user
-    let client;
     try {
-      const connection = await connectToMongo();
-      client = connection.client;
-      const db = connection.db;
+      const db = await getDatabase();
       const usersCollection = db.collection('users');
       
       // First, try to find user by IMEI
@@ -80,8 +47,6 @@ export default async function handler(req, res) {
         user = await usersCollection.findOne({ Boat: imei, password });
       }
       
-      // Close MongoDB connection
-      await client.close();
       
       if (!user) {
         console.error('Demo user not found in database:', imei);
@@ -105,10 +70,6 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ ...appUser, token });
     } catch (error) {
-      // Ensure MongoDB connection is closed if there was an error
-      if (client) {
-        await client.close();
-      }
       throw error;
     }
   } catch (error) {

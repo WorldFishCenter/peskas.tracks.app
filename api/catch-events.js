@@ -1,39 +1,6 @@
-import { MongoClient } from 'mongodb';
 import { identifyCaller } from './_utils/requireFisher.js';
+import { getDatabase } from './_utils/mongodb.js';
 
-// MongoDB Connection
-// Remove quotes from MongoDB URI if present
-const MONGODB_URI = process.env.MONGODB_URI 
-  ? process.env.MONGODB_URI.replace(/^"|"$/g, '')
-  : '';
-
-// Connect to MongoDB with better error handling
-async function connectToMongo() {
-  // Add validation for MongoDB URI
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not set');
-  }
-  
-  if (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://')) {
-    console.error('Invalid MongoDB URI format:', MONGODB_URI);
-    throw new Error('Invalid MongoDB URI format. Must start with mongodb:// or mongodb+srv://');
-  }
-  
-  const client = new MongoClient(MONGODB_URI, {
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-  });
-  
-  try {
-    await client.connect();
-    return { client, db: client.db('portal-prod') };
-  } catch (error) {
-    console.error('Error connecting to MongoDB:', error);
-    throw error;
-  }
-}
-
-// Serverless function handler for catch events
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -54,7 +21,6 @@ export default async function handler(req, res) {
   // the identity from here instead of from the query string.
   await identifyCaller(req);
 
-  let client;
   
   try {
     // Handle POST request - Create catch event
@@ -98,9 +64,7 @@ export default async function handler(req, res) {
       console.log(`Creating catch event for trip ${tripId} by identifier ${userIdentifier}`);
 
       // Connect to MongoDB
-      const connection = await connectToMongo();
-      client = connection.client;
-      const db = connection.db;
+      const db = await getDatabase();
 
       const catchEventsCollection = db.collection('catch-events');
 
@@ -155,8 +119,6 @@ export default async function handler(req, res) {
       
       console.log(`Catch event created with ID: ${result.insertedId}`);
       
-      // Close MongoDB connection
-      await client.close();
       
       return res.status(201).json(createdEvent);
     }
@@ -166,9 +128,7 @@ export default async function handler(req, res) {
       const { query } = req;
       
       // Connect to MongoDB
-      const connection = await connectToMongo();
-      client = connection.client;
-      const db = connection.db;
+      const db = await getDatabase();
       
       const catchEventsCollection = db.collection('catch-events');
       
@@ -178,7 +138,6 @@ export default async function handler(req, res) {
 
         // Validate tripId is a non-empty string (prevent NoSQL injection)
         if (!tripId || typeof tripId !== 'string') {
-          await client.close();
           return res.status(400).json({ error: 'Trip ID is required and must be a string' });
         }
 
@@ -186,7 +145,6 @@ export default async function handler(req, res) {
 
         const events = await catchEventsCollection.find({ tripId }).sort({ reportedAt: -1 }).toArray();
 
-        await client.close();
         return res.json(events);
       }
 
@@ -196,7 +154,6 @@ export default async function handler(req, res) {
 
         // Validate imei is a non-empty string (prevent NoSQL injection)
         if (!imei || typeof imei !== 'string') {
-          await client.close();
           return res.status(400).json({ error: 'IMEI is required and must be a string' });
         }
 
@@ -204,7 +161,6 @@ export default async function handler(req, res) {
 
         const events = await catchEventsCollection.find({ imei }).sort({ reportedAt: -1 }).toArray();
 
-        await client.close();
         return res.json(events);
       }
 
@@ -214,7 +170,6 @@ export default async function handler(req, res) {
 
         // Validate username is a non-empty string (prevent NoSQL injection)
         if (!username || typeof username !== 'string') {
-          await client.close();
           return res.status(400).json({ error: 'Username is required and must be a string' });
         }
 
@@ -222,13 +177,11 @@ export default async function handler(req, res) {
 
         const events = await catchEventsCollection.find({ username }).sort({ reportedAt: -1 }).toArray();
 
-        await client.close();
         return res.json(events);
       }
 
       // If no specific query parameters, return error
       else {
-        await client.close();
         return res.status(400).json({ error: 'Either tripId, imei, or username query parameter is required' });
       }
     }
@@ -241,10 +194,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Error in catch events API:', error);
     
-    // Ensure MongoDB connection is closed if there was an error
-    if (client) {
-      await client.close();
-    }
     
     return res.status(500).json({ error: 'Internal server error' });
   }

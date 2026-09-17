@@ -27,6 +27,19 @@ production domain only, so the base map returns 403 on any other port.
 - `npm run db:check` - Verify MongoDB connectivity and report collection counts
 - `npm run db:explore-fishers` - Report the shape of the fisher stats collections
 
+### Choosing the database
+`MONGODB_DATABASE` selects which database everything talks to, defaulting to
+`portal-prod` when unset. Set it to `portal-dev` in `.env` to develop against
+the populated dev copy instead of writing real records while testing.
+
+Note that `appName` in the connection string selects nothing — it is only a
+label MongoDB shows in its own logs, and a string reading `pds-dev` there does
+not mean you are on the dev database.
+
+`portal-dev` is a separate database with its own accounts, so administrators
+created in one do not exist in the other. Create them where you need them:
+`MONGODB_DATABASE=portal-dev npm run admin:create -- <username>`.
+
 ### Administrators
 - `npm run admin:create -- <username>` - Create an administrator account
 - `npm run admin:create -- --list` - List the administrators that exist

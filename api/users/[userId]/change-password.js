@@ -1,30 +1,6 @@
-import { MongoClient, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
+import { getDatabase } from '../../_utils/mongodb.js';
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI
-  ? process.env.MONGODB_URI.replace(/^"|"$/g, '')
-  : '';
-
-async function connectToMongo() {
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not set');
-  }
-
-  if (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://')) {
-    console.error('Invalid MongoDB URI format:', MONGODB_URI);
-    throw new Error('Invalid MongoDB URI format. Must start with mongodb:// or mongodb+srv://');
-  }
-
-  const client = new MongoClient(MONGODB_URI, {
-    connectTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-  });
-
-  await client.connect();
-  return { client, db: client.db('portal-prod') };
-}
-
-// Serverless function handler for password change
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -61,11 +37,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
   }
 
-  let client;
   try {
-    const connection = await connectToMongo();
-    client = connection.client;
-    const db = connection.db;
+    const db = await getDatabase();
     const usersCollection = db.collection('users');
 
     // Verify current password
@@ -75,7 +48,6 @@ export default async function handler(req, res) {
     });
 
     if (!user) {
-      await client.close();
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
 
@@ -90,7 +62,6 @@ export default async function handler(req, res) {
       }
     );
 
-    await client.close();
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -102,9 +73,6 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    if (client) {
-      await client.close();
-    }
     console.error('Error changing password:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
