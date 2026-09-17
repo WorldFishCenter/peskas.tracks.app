@@ -1,4 +1,5 @@
 import { MongoClient, ObjectId } from 'mongodb';
+import { identifyCaller } from '../_utils/requireFisher.js';
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI
@@ -32,13 +33,18 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
   );
 
   // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+
+  // Who is calling? Recorded, not required: step 3 of
+  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
+  // the identity from here instead of from the query string.
+  await identifyCaller(req);
 
   const { userId } = req.query;
 

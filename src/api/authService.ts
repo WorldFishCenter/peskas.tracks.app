@@ -21,6 +21,8 @@ export interface AppUser {
   community?: string;
   region?: string;
   hasImei?: boolean;
+  /** Proof of this session, to be sent with later requests. */
+  token?: string | null;
 }
 
 /**

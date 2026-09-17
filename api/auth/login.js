@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import { issueToken } from '../_utils/token.js';
 
 /**
  * Escape special regex characters in a string to prevent regex injection
@@ -49,7 +50,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
   );
   
   // Handle preflight OPTIONS request BEFORE method validation
@@ -153,8 +154,13 @@ export default async function handler(req, res) {
       };
 
       console.log('User authenticated:', { name: appUser.name, hasImei: appUser.hasImei });
-      
-      return res.status(200).json(appUser);
+
+      // The token is how later requests prove they are this user rather than
+      // merely naming them. Null when no secret is configured, in which case
+      // sign-in still works and the app carries on unauthenticated.
+      const token = await issueToken(appUser);
+
+      return res.status(200).json({ ...appUser, token });
     } catch (error) {
       // Ensure MongoDB connection is closed if there was an error
       if (client) {

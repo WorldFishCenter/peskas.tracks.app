@@ -34,6 +34,35 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+/** Where httpClient looks for the session token. */
+const TOKEN_KEY = 'authToken';
+
+/**
+ * Put a signed-in user away, with the token kept apart from the user object.
+ *
+ * Separate on purpose: the user object goes to Sentry, to localStorage and
+ * through component props, and a credential riding along inside it would
+ * travel everywhere the user's name does. Returns the user without it.
+ */
+const storeSession = (user: User & { token?: string | null }): User => {
+  const { token, ...withoutToken } = user;
+
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      // No token means the server issued none — carry on unauthenticated
+      // rather than leaving a stale one from a previous session in place.
+      localStorage.removeItem(TOKEN_KEY);
+    }
+    localStorage.setItem('currentUser', JSON.stringify(withoutToken));
+  } catch (error) {
+    console.warn('Could not persist the session:', error);
+  }
+
+  return withoutToken;
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,17 +90,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const user = await findUserByIMEI(imei, password);
         
         if (user) {
-          setCurrentUser(user);
-          localStorage.setItem('currentUser', JSON.stringify(user));
+          const session = storeSession(user);
+          setCurrentUser(session);
 
           // Set Sentry user context
           setSentryUser({
-            id: user.id,
-            username: user.name,
-            role: user.role
+            id: session.id,
+            username: session.name,
+            role: session.role
           });
 
-          resolve(user);
+          resolve(session);
         } else {
           reject(new Error('Invalid IMEI or password'));
         }
@@ -104,19 +133,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
         
-        const user: User = await response.json();
+        const user: User & { token?: string | null } = await response.json();
 
-        setCurrentUser(user);
-        localStorage.setItem('currentUser', JSON.stringify(user));
+        const session = storeSession(user);
+        setCurrentUser(session);
 
         // Set Sentry user context
         setSentryUser({
-          id: user.id,
-          username: user.name,
-          role: user.role
+          id: session.id,
+          username: session.name,
+          role: session.role
         });
 
-        resolve(user);
+        resolve(session);
       } catch (error) {
         console.error('Demo login error:', error);
         reject(new Error('Error during demo login'));
@@ -130,6 +159,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
+    localStorage.removeItem(TOKEN_KEY);
 
     // Clear Sentry user context
     setSentryUser(null);

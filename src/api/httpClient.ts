@@ -23,6 +23,24 @@
 /** Relative, so the dev server and production both resolve it to themselves. */
 const API_BASE = '/api';
 
+/** Where AuthContext leaves the session token for us. */
+const TOKEN_KEY = 'authToken';
+
+/**
+ * Read the session token, if there is one.
+ *
+ * localStorage throws rather than returning null in a private window with site
+ * data blocked, and a sign-in page that cannot render is worse than a request
+ * that goes out unauthenticated, so this never throws.
+ */
+function sessionToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 type QueryValue = string | number | boolean | null | undefined;
 
 export type QueryParams = Record<string, QueryValue>;
@@ -45,7 +63,15 @@ export interface RequestOptions {
  * a slash, e.g. `/waypoints`.
  */
 export function apiFetch(path: string, options: RequestOptions = {}): Promise<Response> {
-  return request(`${API_BASE}${path}`, options);
+  const token = sessionToken();
+
+  return request(`${API_BASE}${path}`, {
+    ...options,
+    headers: token
+      // Spread second so a caller that sets its own Authorization keeps it.
+      ? { Authorization: `Bearer ${token}`, ...options.headers }
+      : options.headers
+  });
 }
 
 /**

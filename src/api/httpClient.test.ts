@@ -9,8 +9,16 @@ import { apiFetch, externalFetch } from './httpClient';
 
 let calls: Array<{ url: string; init: RequestInit }>;
 
+const store = new Map<string, string>();
+
 beforeEach(() => {
   calls = [];
+  store.clear();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => void store.set(key, value),
+    removeItem: (key: string) => void store.delete(key)
+  });
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     calls.push({ url, init });
     return Promise.resolve(new Response('{}', { status: 200 }));
@@ -127,5 +135,53 @@ describe('timeouts', () => {
     controller.abort(new Error('caller changed its mind'));
 
     await expect(pending).rejects.toThrow('caller changed its mind');
+  });
+});
+
+describe('the session token', () => {
+  it('rides along with our own API calls', async () => {
+    store.set('authToken', 'a.signed.token');
+
+    await apiFetch('/waypoints');
+
+    expect(lastCall().init.headers).toMatchObject({
+      Authorization: 'Bearer a.signed.token'
+    });
+  });
+
+  // The point of keeping externalFetch separate. A session token sent to
+  // another host is a credential handed to a stranger, and the Pelagic
+  // Analytics API has no business holding ours.
+  it('never leaves our own origin', async () => {
+    store.set('authToken', 'a.signed.token');
+
+    await externalFetch('https://analytics.example.com/v1/trips');
+
+    expect(JSON.stringify(lastCall().init.headers ?? {})).not.toContain('a.signed.token');
+  });
+
+  it('is simply absent when nobody is signed in', async () => {
+    await apiFetch('/users');
+
+    expect(lastCall().init.headers).not.toHaveProperty('Authorization');
+  });
+
+  it('does not displace an Authorization header a caller set itself', async () => {
+    store.set('authToken', 'a.signed.token');
+
+    await apiFetch('/users', { headers: { Authorization: 'Bearer something-else' } });
+
+    expect(lastCall().init.headers).toMatchObject({
+      Authorization: 'Bearer something-else'
+    });
+  });
+
+  it('carries on unauthenticated when localStorage refuses to answer', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => { throw new Error('access denied'); }
+    });
+
+    await expect(apiFetch('/users')).resolves.toBeDefined();
+    expect(lastCall().init.headers).not.toHaveProperty('Authorization');
   });
 });

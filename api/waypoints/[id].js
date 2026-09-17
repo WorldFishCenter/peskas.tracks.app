@@ -1,4 +1,5 @@
 import { ObjectId } from 'mongodb';
+import { identifyCaller } from '../_utils/requireFisher.js';
 import { getDatabase } from '../_utils/mongodb.js';
 import { corsMiddleware } from '../_utils/cors.js';
 import { rateLimitMiddleware, RateLimitPresets } from '../_utils/rateLimit.js';
@@ -17,6 +18,11 @@ export default async function handler(req, res) {
   if (corsMiddleware(req, res)) {
     return; // OPTIONS request handled
   }
+
+  // Who is calling? Recorded, not required: step 3 of
+  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
+  // the identity from here instead of from the query string.
+  await identifyCaller(req);
 
   try {
     const { id } = req.query;

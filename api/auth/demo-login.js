@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import { issueToken } from '../_utils/token.js';
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI 
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
   );
   
   // Handle preflight OPTIONS request BEFORE method validation
@@ -99,7 +100,10 @@ export default async function handler(req, res) {
       };
       
       console.log('Demo login successful for:', imei);
-      return res.status(200).json(appUser);
+
+      const token = await issueToken(appUser);
+
+      return res.status(200).json({ ...appUser, token });
     } catch (error) {
       // Ensure MongoDB connection is closed if there was an error
       if (client) {
