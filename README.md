@@ -2,22 +2,16 @@
 
 A web application for viewing and analyzing vessel tracking data.
 
-## Version 2.8.0 - Latest Updates
+## Version 2.9.0 - Latest Updates
 
 ### New Features
-- **Waypoints on the Map**: Save and manage private waypoints for important fishing locations
-  - Add waypoints using GPS, map click, or manual coordinates
-  - Categorize by type: Port, Anchorage, Fishing Ground, Favorite Spot, or Other
-  - Color-coded pins with tooltips showing waypoint details
-  - Toggle visibility for each waypoint individually or all at once
-  - "Show on Map" button to center the map on any saved waypoint
-  - Completely private - only you can see your waypoints
-- **Waypoint API + Hook**: New `/api/waypoints` CRUD endpoints with per-user access checks, type validation, and demo-mode safeguards, plus a `useWaypoints` client hook
+- **Administrator Accounts**: Administrators sign in with their own account rather than a shared global password, created with `npm run admin:create`
+- **Session Tokens**: Signing in issues a signed token sent with every API request, so the server knows who is calling
 
 ### Improvements
-- **API Hardening**: Shared CORS, rate limiting, validation, and error-handling utilities applied to waypoint routes; Mongo index creation script added
-- **Observability & Build Tooling**: Frontend Sentry initialization with release tagging and optional replay sampling, Vite Sentry plugin for source map upload
-- **Map & Layout Polish**: New waypoint controls in map UI, mobile-friendly tooltips, and layout scroll fixes
+- **One API Client**: All frontend requests go through a single module; third-party calls stay separate so credentials never leave our own origin
+- **Database Selection**: `MONGODB_DATABASE` chooses the database for every endpoint, so development can run against `portal-dev`
+- **Dev Server Fixes**: Hot reload works behind `vercel dev`; a stale service worker no longer takes over the development page
 
 ## Features
 
@@ -119,6 +113,12 @@ The application uses:
 - [Production Readiness Report](./PRODUCTION_READINESS_REPORT.md) - Comprehensive production readiness audit
 
 ## Version History
+
+### Version 2.8.0
+- Waypoints on the map, with a `/api/waypoints` CRUD API and `useWaypoints` hook
+- User feedback system for all user types, fully localised
+- API hardening: shared CORS, rate limiting, validation, and error handling
+- Sentry observability and build tooling
 
 ### Version 2.7.0 (December 2024)
 - User registration and profile management system

@@ -1,3 +1,14 @@
+# tracks-explorer 2.9
+
+### New Features
+- **Administrator Accounts**: Administrators sign in with an account of their own instead of a shared global password, so their waypoints, catch events, and feedback are attributed to them. Created with `npm run admin:create`.
+- **Session Tokens**: Signing in now issues a signed token that the app sends with every API request, and the server records who is calling. Nothing is rejected yet.
+
+### Improvements
+- **One API Client**: All frontend requests go through a single module, which is where the session token is attached; third-party calls stay separate so credentials never leave our own origin.
+- **Database Selection**: `MONGODB_DATABASE` now chooses the database for every endpoint, so local development can run against `portal-dev` rather than writing production records.
+- **Dev Server Fixes**: Hot reload works behind `vercel dev`, and a service worker left by an old production build no longer takes over the development page.
+
 # tracks-explorer 2.8
 
 ### New Features
