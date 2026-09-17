@@ -1,3 +1,5 @@
+import { ValidationError } from './errorHandler.js';
+
 /**
  * Input validation and sanitization utilities
  * Prevents NoSQL injection and XSS attacks
@@ -54,7 +56,7 @@ export function validateString(value, options = {}) {
   // Handle null/undefined
   if (value === null || value === undefined || value === '') {
     if (required) {
-      throw new Error('Value is required');
+      throw new ValidationError('Value is required');
     }
     return null;
   }
@@ -64,16 +66,16 @@ export function validateString(value, options = {}) {
 
   // Check length
   if (str.length < minLength) {
-    throw new Error(`Value must be at least ${minLength} characters`);
+    throw new ValidationError(`Value must be at least ${minLength} characters`);
   }
 
   if (str.length > maxLength) {
-    throw new Error(`Value must not exceed ${maxLength} characters`);
+    throw new ValidationError(`Value must not exceed ${maxLength} characters`);
   }
 
   // Check pattern
   if (pattern && !pattern.test(str)) {
-    throw new Error('Value format is invalid');
+    throw new ValidationError('Value format is invalid');
   }
 
   return str;
@@ -97,7 +99,7 @@ export function validateNumber(value, options = {}) {
   // Handle null/undefined
   if (value === null || value === undefined || value === '') {
     if (required) {
-      throw new Error('Value is required');
+      throw new ValidationError('Value is required');
     }
     return null;
   }
@@ -107,21 +109,21 @@ export function validateNumber(value, options = {}) {
 
   // Check if valid number
   if (isNaN(num)) {
-    throw new Error('Value must be a valid number');
+    throw new ValidationError('Value must be a valid number');
   }
 
   // Check integer
   if (integer && !Number.isInteger(num)) {
-    throw new Error('Value must be an integer');
+    throw new ValidationError('Value must be an integer');
   }
 
   // Check range
   if (num < min) {
-    throw new Error(`Value must be at least ${min}`);
+    throw new ValidationError(`Value must be at least ${min}`);
   }
 
   if (num > max) {
-    throw new Error(`Value must not exceed ${max}`);
+    throw new ValidationError(`Value must not exceed ${max}`);
   }
 
   return num;
@@ -140,13 +142,13 @@ export function validateEnum(value, allowedValues, required = false) {
   // Handle null/undefined
   if (value === null || value === undefined || value === '') {
     if (required) {
-      throw new Error('Value is required');
+      throw new ValidationError('Value is required');
     }
     return null;
   }
 
   if (!allowedValues.includes(value)) {
-    throw new Error(`Value must be one of: ${allowedValues.join(', ')}`);
+    throw new ValidationError(`Value must be one of: ${allowedValues.join(', ')}`);
   }
 
   return value;
@@ -194,7 +196,7 @@ export function isValidEmail(email) {
  */
 export function validateCoordinates(coordinates) {
   if (!coordinates || typeof coordinates !== 'object') {
-    throw new Error('Coordinates must be an object');
+    throw new ValidationError('Coordinates must be an object');
   }
 
   const lat = validateNumber(coordinates.lat, {
@@ -223,7 +225,7 @@ export function validateCoordinates(coordinates) {
 export function validateDate(dateStr, required = false) {
   if (!dateStr) {
     if (required) {
-      throw new Error('Date is required');
+      throw new ValidationError('Date is required');
     }
     return null;
   }
@@ -231,7 +233,7 @@ export function validateDate(dateStr, required = false) {
   const date = new Date(dateStr);
 
   if (isNaN(date.getTime())) {
-    throw new Error('Invalid date format');
+    throw new ValidationError('Invalid date format');
   }
 
   return date;
