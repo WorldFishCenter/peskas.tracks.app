@@ -152,7 +152,7 @@ export async function submitNoCatchEvent(
  */
 export async function getCatchEventsByTrip(tripId: string): Promise<CatchEvent[]> {
   try {
-    const response = await apiFetch(`/catch-events/trip/${tripId}`);
+    const response = await apiFetch(`/catch-events?tripId=${encodeURIComponent(tripId)}`);
     
     if (!response.ok) {
       throw new Error(i18n.t('api.failedToFetchCatchEvents', { status: response.status }));

@@ -1,133 +1,89 @@
-# PESKAS Tracks Explorer
+# Peskas Tracks
 
-A web application for viewing and analyzing vessel tracking data.
+An app for small-scale fishers to see where their vessel has been, record what they caught, and compare their results with their community.
 
-## Version 2.9.0 - Latest Updates
+[tracks.peskas.org](https://tracks.peskas.org)
 
-### New Features
-- **Administrator Accounts**: Administrators sign in with their own account rather than a shared global password, created with `npm run admin:create`
-- **Session Tokens**: Signing in issues a signed token sent with every API request, so the server knows who is calling
+## What it is
 
-### Improvements
-- **One API Client**: All frontend requests go through a single module; third-party calls stay separate so credentials never leave our own origin
-- **Database Selection**: `MONGODB_DATABASE` chooses the database for every endpoint, so development can run against `portal-dev`
-- **Dev Server Fixes**: Hot reload works behind `vercel dev`; a stale service worker no longer takes over the development page
+Peskas Tracks is for fishers in Kenya, Tanzania (including Zanzibar) and Mozambique. It runs in the web browser at tracks.peskas.org and as an Android and iOS app. It is available in English, Portuguese and Swahili.
 
-## Features
+Fishers sign in with their vessel's tracker number (IMEI), the vessel's name or their username, together with a password. Fishers whose vessel has no tracker can register themselves and use their phone's location instead. A demo mode with sample data lets anyone try the app without an account.
 
-- View vessel tracks on an interactive map
-- Filter trips by date and vessel
-- Analyze vessel speed with color-coded tracks
-- **Save private waypoints** for ports, fishing grounds, and favorite spots
-- Report catches with photos and GPS data
-- View performance statistics and compare with community
-- User registration and profile management
-- Support for both PDS (tracking device) and non-PDS users
-- Device GPS location support
-- Bathymetry layer showing ocean depth contours
-- MongoDB-based authentication system using IMEI, boat name, or username
-- Multi-language support (English, Portuguese, Swahili)
+## What you can do
 
-## Getting Started
+- See your trips on a map: where your vessel went, when, and how fast.
+- See where your vessel is now, as last reported by its tracker.
+- Report your catch after a trip, with photos, including trips where you caught nothing.
+- Save private waypoints: ports, anchorages, fishing grounds and favourite spots.
+- Compare your catch and fishing effort with the rest of your community.
+- Send feedback to the Peskas team.
 
-### Prerequisites
+## Where the data comes from
 
-- Node.js (v16+)
-- npm
+- **GPS trackers (Pelagic Data Systems).** Small solar-powered devices on vessels record where they travel. The app reads trips and live locations directly from Pelagic Data Systems.
+- **What fishers enter.** Catch reports, waypoints and feedback are stored in the Peskas database.
+- **Community comparisons.** The [Peskas Coasts data pipeline](https://github.com/WorldFishCenter/peskas.coasts) recalculates each fisher's catch and effort, and their community's, once a day.
 
-### Installation
+A community is the landing site a fisher works from. The demo shows real tracks recorded once, with names and identifiers removed.
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Make sure you have a valid `.env` file with the required environment variables:
-   ```
-   VITE_MAPBOX_TOKEN=your_mapbox_token
-   MONGODB_URI=your_mongodb_connection_string
-   ```
+## Who runs it
 
-   `vercel dev` reads this file, so the same values serve the frontend and
-   the API functions.
+Peskas Tracks is developed by [WorldFish](https://worldfishcenter.org), with tracking data from [Pelagic Data Systems](https://www.pelagicdata.com). For questions, write to <peskas.platform@gmail.com>.
 
-### Running the Application
+## Part of Peskas
 
-#### Development Mode
+Peskas is WorldFish's open-source platform for monitoring small-scale fisheries (https://peskas.org).
 
-Local development runs the same serverless functions that production runs,
-rather than a separate Express implementation of them. That requires the
-project to be linked once:
+- [Peskas Zanzibar](https://zanzibar.peskas.org), [Peskas Kenya](https://peskas-dashboard-kenya.vercel.app/en), [Peskas Mozambique](https://peskas-dashboard-mozambique.vercel.app): country dashboards
+- [Peskas Timor-Leste](https://timor.peskas.org): Timor-Leste portal
+- [Peskas Coasts](https://coasts.peskas.org): regional comparison across countries
+- [Peskas Kenya BMU dashboard](https://digitalfisheries.kenya.peskas.org): dashboard for Beach Management Units in Kenya
+- [Peskas Management Platform](https://validation.peskas.org): data review and download for survey teams
+- [Peskas Fishery Data API](https://api.peskas.org/docs): programmatic access to landing data
+- Data pipelines: [Kenya](https://github.com/WorldFishCenter/peskas.kenya.data.pipeline), [Zanzibar](https://github.com/WorldFishCenter/peskas.zanzibar.data.pipeline), [Mozambique](https://github.com/WorldFishCenter/peskas.mozambique.data.pipeline), [Timor-Leste](https://github.com/WorldFishCenter/peskas.timor.data.pipeline), [Coasts](https://github.com/WorldFishCenter/peskas.coasts)
+
+## For developers
+
+A React + TypeScript app built with Vite. The backend is the set of Vercel functions in `api/`, which use MongoDB. Capacitor wraps the built app for Android and iOS (`android/`, `ios/`, `capacitor.config.ts`, app name `PESKAS|tracks`). Use the terms in [`CONTEXT.md`](CONTEXT.md) (fisher, vessel, trip, catch event, waypoint) in code, UI text and docs.
+
+**Requirements:** Node.js 20 or later (CI uses 22) and a Vercel account with access to the project.
+
+**Setup**
 
 ```bash
-npx vercel login
-npx vercel link
+npm install
+cp .env.example .env              # then fill in the values
+npx vercel login && npx vercel link   # once
+npm run dev:all                   # frontend and api/ functions at http://localhost:5173
 ```
 
-Then, to run the frontend and the API together:
+`MONGODB_DATABASE` defaults to `portal-prod`, the production database. Set `MONGODB_DATABASE=portal-dev` in `.env` for local work so you do not write real records. `npm run dev` runs the frontend alone, without the `api/` functions. Keep port 5173: the Mapbox token only works there and on the production domain.
 
-```bash
-npm run dev:all
-```
+**Environment variables.** Anything prefixed `VITE_` is compiled into the public JavaScript bundle that every visitor downloads, so never give a database connection string or other server secret a `VITE_` name. Set these server-only variables in the Vercel project, without the prefix:
 
-This serves the frontend and the functions in `api/` on a single origin, the
-way they are served in production, so `/api/...` needs no proxy.
+- `MONGODB_URI`: MongoDB connection string.
+- `MONGODB_DATABASE`: `portal-prod` in production.
+- `AUTH_TOKEN_SECRET`: signs session tokens.
+- `ALLOWED_ORIGINS`: origins allowed to call the API.
+- `GCP_SA_KEY` with `FALLBACK_PARQUET_BUCKET` and `FALLBACK_PARQUET_OBJECT`, or `FALLBACK_PARQUET_URL`: backup copy of the tracks, used when Pelagic Data Systems is unavailable.
+- `GLOBAL_PASSW`: signs in as any fisher. Set it only in the Vercel Development environment.
 
-#### Frontend Only
+The client reads `VITE_MAPBOX_TOKEN`, the Pelagic Data Systems settings (`VITE_API_TOKEN`, `VITE_API_SECRET`, `VITE_PELAGIC_*`) and `VITE_SENTRY_DSN`. `.env.example` lists them all.
 
-For work that does not touch the API:
+**Main commands**
 
-```bash
-npm run dev
-```
+- `npm run dev:all` (or `npm run start`): frontend and API together.
+- `npm run build`, `npm run lint`, `npm run preview`.
+- `npm run test`: Vitest, including round-trip tests of the `api/` functions against an in-memory MongoDB.
+- `npm run admin:create -- <username>`: create an administrator account (`-- --list` lists them). Administrators are people, not vessels, and can view any vessel. Accounts are per database, so add `MONGODB_DATABASE=portal-dev` in front to create one for development.
+- `npm run demo:snapshot -- --imei <imei> --from YYYY-MM-DD --to YYYY-MM-DD`: rebuild the demo's sample tracks, then run `npm run test`.
+- `npm run db:check`: check the MongoDB connection and collection counts.
 
-This runs Vite alone, so requests to `/api/...` will not resolve.
+Session tokens are issued at sign-in and sent with every API request, but the API does not verify them yet: handlers still trust the identifiers the caller sends.
 
-### Authentication
+**Production.** Vercel deploys `main` to production. `.github/workflows/ci.yaml` builds, tests and lints every pull request and push to `main`.
 
-The application authenticates users against a MongoDB database. You can log in using:
+**Releases:** add a block at the top of [`NEWS.md`](NEWS.md). On every push to `main`, `.github/workflows/release.yaml` publishes it as a GitHub release.
 
-- **Vessel IMEI**: The 15-digit IMEI number of a registered vessel
-- **Password**: The corresponding password in the MongoDB database
-
-## Deployment
-
-### Vercel Deployment
-
-This application is configured for easy deployment to Vercel. For detailed instructions, see [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md).
-
-Quick steps:
-1. Push your code to a Git repository
-2. Import the project in Vercel Dashboard
-3. Set the environment variables (`VITE_MONGODB_URI` and `VITE_MAPBOX_TOKEN`)
-4. Deploy
-
-The application uses:
-- Vercel Serverless Functions for the backend API
-- Vite build for the frontend
-- Environment variables for configuration
-
-## Documentation
-
-- [Vercel Deployment Guide](./VERCEL_DEPLOYMENT.md) - Instructions for deploying to Vercel
-- [Production Readiness Report](./PRODUCTION_READINESS_REPORT.md) - Comprehensive production readiness audit
-
-## Version History
-
-### Version 2.8.0
-- Waypoints on the map, with a `/api/waypoints` CRUD API and `useWaypoints` hook
-- User feedback system for all user types, fully localised
-- API hardening: shared CORS, rate limiting, validation, and error handling
-- Sentry observability and build tooling
-
-### Version 2.7.0 (December 2024)
-- User registration and profile management system
-- Non-PDS user support with GPS device location
-- Enhanced map visibility (always visible, even without trips)
-- Flexible authentication (IMEI, boat name, or username)
-- User catch events API endpoints
-- Improved map UI with cleaner controls
-- Enhanced localization (English, Portuguese, Swahili)
-
-### Previous Versions
-See git commit history for earlier versions.
+**AI-assisted work:** see [`CLAUDE.md`](CLAUDE.md).
