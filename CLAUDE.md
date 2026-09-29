@@ -1,7 +1,7 @@
 # tracks-explorer
 
 Fisher-facing tracks app (PESKAS|tracks). Fishers see where their vessels went, report catches, save waypoints and compare their results against their community. It is a React + Vite + TypeScript frontend, with Vercel functions in `api/` and a Capacitor wrapper for Android and iOS (`android/`, `ios/`, `capacitor.config.ts`, `webDir: dist`).
-Ecosystem context (other repos, data flow, cross-repo contracts): see PESKAS.md, loaded via CLAUDE.local.md.
+Ecosystem context (other repos, data flow, cross-repo contracts): loaded by the `peskas` Claude Code plugin (repo `peskas-context`).
 
 ## Commands
 
