@@ -1,3 +1,8 @@
+# tracks-explorer 2.10
+
+### Improvements
+- **Safer Demo**: The demo replays sample trips from a snapshot with no real boat or fisher details, and no longer uses a real account.
+
 # tracks-explorer 2.9
 
 ### New Features
