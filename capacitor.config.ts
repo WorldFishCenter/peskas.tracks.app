@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'worldfish.peskas.tracks',
-  appName: 'PESKAS|tracks',
+  appName: 'Peskas Tracks',
   webDir: 'dist'
 };
 

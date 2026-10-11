@@ -7,7 +7,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import BoatSelectionModal from '../components/BoatSelectionModal';
 import { anonymizeImei, anonymizeBoatName, isDemoMode } from '../utils/demoData';
-import { SailboatIcon } from '../components/SailboatIcon';
+import { PeskasLogo, PeskasMark } from '../components/PeskasLogo';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -74,30 +74,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, pageHeader, stickyFoo
             <span className="navbar-toggler-icon"></span>
           </button>
 
-          <div className="navbar-brand navbar-brand-autodark d-flex align-items-center">
-            <SailboatIcon size={42} className="me-2 d-sm-none text-primary" />
-            <SailboatIcon size={50} className="me-3 d-none d-sm-block text-primary" />
-            <div>
-              <div className="d-sm-none">
-                <h1 className="h3 mb-0 fw-bold">PESKAS</h1>
-                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  2.10 {isDemoMode() && <span className="text-warning fw-bold">DEMO</span>}
-                </div>
-              </div>
-              <div className="d-none d-sm-block d-md-none">
-                <h1 className="h3 mb-0 fw-bold">PESKAS</h1>
-                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  Portal 2.10 {isDemoMode() && <span className="text-warning fw-bold">DEMO</span>}
-                </div>
-              </div>
-              <div className="d-none d-md-block">
-                <h1 className="h2 mb-0 fw-bold">PESKAS</h1>
-                <div className="h4 text-muted mb-0">
-                  Fishers Tracking Portal <span style={{ fontSize: '0.75rem' }}>2.10</span>
-                  {isDemoMode() && <span className="text-warning fw-bold ms-2" style={{ fontSize: '1rem' }}>DEMO</span>}
-                </div>
-              </div>
-            </div>
+          {/* The Peskas logo and the product name, one link home that reads "Peskas Tracks"; the version
+              and the demo flag follow on the same baseline. */}
+          <div className="navbar-brand peskas-responsive d-flex align-items-center">
+            <h1 className="m-0">
+              <Link to="/" className="peskas-lockup d-flex align-items-center gap-2 text-reset text-decoration-none">
+                <PeskasLogo className="peskas-logo" />
+                <PeskasMark className="peskas-mark" />
+                <span className="peskas-baseline fs-3 fw-medium lh-1 text-secondary">Tracks</span>
+              </Link>
+            </h1>
+            <span className="peskas-baseline fs-3 lh-1">
+              <span className="fs-5 text-secondary">2.10</span>
+              {isDemoMode() && <span className="fs-5 text-warning fw-bold ms-1">DEMO</span>}
+            </span>
           </div>
 
           <div className="navbar-nav flex-row order-md-last">

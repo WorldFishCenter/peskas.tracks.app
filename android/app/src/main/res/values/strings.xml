@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PESKAS|tracks</string>
-    <string name="title_activity_main">PESKAS|tracks</string>
+    <string name="app_name">Peskas Tracks</string>
+    <string name="title_activity_main">Peskas Tracks</string>
     <string name="package_name">worldfish.peskas.tracks</string>
     <string name="custom_url_scheme">worldfish.peskas.tracks</string>
 </resources>

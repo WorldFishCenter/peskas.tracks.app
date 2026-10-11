@@ -11,53 +11,23 @@ export default defineConfig({
       registerType: 'autoUpdate',
       // Disable minification to avoid terser renderChunk failures during build
       minify: false,
-      includeAssets: ['favicon.ico', 'robots.txt', 'icons/*.png'],
+      // Files in public/ to precache besides the build output; the manifest icons are added by the plugin
+      includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],
+      // The app's only web manifest (served as /manifest.webmanifest and linked into index.html by the plugin).
+      // Icons from the Peskas brand kit (peskas-context/brand/app).
       manifest: {
-        name: 'Tracks Explorer',
+        name: 'Peskas Tracks',
         short_name: 'Tracks',
         description: 'Track and monitor fishing vessel activities',
-        theme_color: '#206bc4',
+        // The colour of the app's top bar (white in Tabler's light theme, the default), so an installed
+        // app's status bar matches it; the splash colour is the Peskas navy, as in the Android and iOS apps.
+        theme_color: '#ffffff',
+        background_color: '#0b2233',
         icons: [
-          {
-            src: '/icons/icon-72x72.png',
-            sizes: '72x72',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-96x96.png',
-            sizes: '96x96',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-128x128.png',
-            sizes: '128x128',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-144x144.png',
-            sizes: '144x144',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-152x152.png',
-            sizes: '152x152',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-384x384.png',
-            sizes: '384x384',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {

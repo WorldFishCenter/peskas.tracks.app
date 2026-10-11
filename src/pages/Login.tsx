@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { IconDeviceMobile, IconLock, IconInfoCircle, IconAlertTriangle, IconCheck, IconUserPlus } from '@tabler/icons-react';
 import { useLanguage } from '../hooks/useLanguage';
-import { SailboatIcon } from '../components/SailboatIcon';
+import { PeskasLogo } from '../components/PeskasLogo';
 import RegistrationModal from '../components/RegistrationModal';
 
 const Login: React.FC = () => {
@@ -65,9 +65,11 @@ const Login: React.FC = () => {
     <div className="page page-center">
       <div className="container container-tight py-4">
         <div className="text-center mb-4">
-          <h1 className="navbar-brand navbar-brand-autodark mb-0 d-flex align-items-center justify-content-center">
-            <SailboatIcon size={48} className="me-2 text-primary" />
-            <span className="fs-2">PESKAS</span> <span className="ms-2">| Fishers Tracking Portal</span>
+          <h1 className="mb-0 d-flex justify-content-center">
+            <span className="peskas-lockup d-flex align-items-center gap-2">
+              <PeskasLogo />
+              <span className="peskas-baseline fs-3 fw-medium lh-1 text-secondary">Tracks</span>
+            </span>
           </h1>
           
           {/* Language switcher below the title - mobile friendly */}

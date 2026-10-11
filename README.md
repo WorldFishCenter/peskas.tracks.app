@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/images/peskas-logo-dark.svg">
+  <img src=".github/images/peskas-logo.svg" alt="Peskas" height="48">
+</picture>
+
 # Peskas Tracks
 
 An app for small-scale fishers to see where their vessel has been, record what they caught, and compare their results with their community.
@@ -45,7 +50,7 @@ Peskas is WorldFish's open-source platform for monitoring small-scale fisheries 
 
 ## For developers
 
-A React + TypeScript app built with Vite. The backend is the set of Vercel functions in `api/`, which use MongoDB. Capacitor wraps the built app for Android and iOS (`android/`, `ios/`, `capacitor.config.ts`, app name `PESKAS|tracks`). Use the terms in [`CONTEXT.md`](CONTEXT.md) (fisher, vessel, trip, catch event, waypoint) in code, UI text and docs.
+A React + TypeScript app built with Vite. The backend is the set of Vercel functions in `api/`, which use MongoDB. Capacitor wraps the built app for Android and iOS (`android/`, `ios/`, `capacitor.config.ts`, app name `Peskas Tracks`). Use the terms in [`CONTEXT.md`](CONTEXT.md) (fisher, vessel, trip, catch event, waypoint) in code, UI text and docs.
 
 **Requirements:** Node.js 20 or later (CI uses 22) and a Vercel account with access to the project.
 
@@ -79,6 +84,7 @@ The client reads `VITE_MAPBOX_TOKEN`, the Pelagic Data Systems settings (`VITE_A
 - `npm run admin:create -- <username>`: create an administrator account (`-- --list` lists them). Administrators are people, not vessels, and can view any vessel. Accounts are per database, so add `MONGODB_DATABASE=portal-dev` in front to create one for development.
 - `npm run demo:snapshot -- --imei <imei> --from YYYY-MM-DD --to YYYY-MM-DD`: rebuild the demo's sample tracks, then run `npm run test`.
 - `npm run db:check`: check the MongoDB connection and collection counts.
+- `npm run assets`: regenerate the Android and iOS app icons and splash screens from the source images in `assets/`, which are made from the Peskas brand kit.
 
 Session tokens are issued at sign-in and sent with every API request, but the API does not verify them yet: handlers still trust the identifiers the caller sends.
 

@@ -2,17 +2,8 @@ const CACHE_NAME = 'tracks-explorer-v3-' + Date.now();
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json',
   '/assets/index.css',
-  '/assets/index.js',
-  '/icons/icon-72x72.png',
-  '/icons/icon-96x96.png',
-  '/icons/icon-128x128.png',
-  '/icons/icon-144x144.png',
-  '/icons/icon-152x152.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-384x384.png',
-  '/icons/icon-512x512.png'
+  '/assets/index.js'
 ];
 
 // IndexedDB helper functions for background sync

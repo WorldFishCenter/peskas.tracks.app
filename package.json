@@ -15,7 +15,8 @@
     "db:check": "node scripts/checkDatabase.js",
     "db:explore-fishers": "node scripts/exploreFisherCollections.js",
     "admin:create": "node scripts/createAdminAccount.js",
-    "demo:snapshot": "node scripts/buildDemoSnapshot.js"
+    "demo:snapshot": "node scripts/buildDemoSnapshot.js",
+    "assets": "capacitor-assets generate --android --ios"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
@@ -54,6 +55,7 @@
     "sass": "^1.85.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^7.4.4",
     "@eslint/js": "^9.21.0",
     "@types/react": "^19.0.10",

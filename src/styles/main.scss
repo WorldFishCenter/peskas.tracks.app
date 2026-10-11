@@ -8,6 +8,22 @@
   --danger-color: #ef4444;
   --light-color: #f8fafc;
   --dark-color: #1e293b;
+  /* The Peskas logo (components/PeskasLogo.tsx; brand kit in peskas-context/brand): its cells shade from the
+     tail (1) to the head (4), darkest at the head on a light page and lightest on a dark one, and the
+     wordmark takes the head's colour; the eye is coral. */
+  --peskas-1: #a9d1d4;
+  --peskas-2: #5aa8af;
+  --peskas-3: #006d77;
+  --peskas-4: #0b2233;
+  --peskas-eye: #d96c50;
+}
+
+[data-bs-theme="dark"] {
+  --peskas-1: #3a6c77;
+  --peskas-2: #3f8a93;
+  --peskas-3: #8ccbd0;
+  --peskas-4: #ffffff;
+  --peskas-eye: #e69f8d;
 }
 
 body {
@@ -86,6 +102,43 @@ body {
 
 .status-gray {
   background-color: #adb5bd;
+}
+
+/* The Peskas logo and the product name beside it (brand kit README › In apps and sites): the logo 28px tall,
+   the name on the wordmark's baseline, which is 79.45% of the logo's height from its top. In the top bar
+   (.peskas-responsive) the mark alone takes the logo's place below 640px, and the name is centred beside it. */
+.peskas-1 { fill: var(--peskas-1); }
+.peskas-2 { fill: var(--peskas-2); }
+.peskas-3 { fill: var(--peskas-3); }
+.peskas-4 { fill: var(--peskas-4); }
+.peskas-eye { fill: var(--peskas-eye); }
+
+.peskas-lockup svg {
+  display: block;
+  height: 28px;
+  width: auto;
+}
+
+.peskas-baseline {
+  transform: translateY(0.15em);
+}
+
+.peskas-responsive .peskas-mark {
+  display: none;
+}
+
+@media (max-width: 639.98px) {
+  .peskas-responsive .peskas-logo {
+    display: none;
+  }
+
+  .peskas-responsive .peskas-mark {
+    display: block;
+  }
+
+  .peskas-responsive .peskas-baseline {
+    transform: none;
+  }
 }
 
 /* Import component styles */
