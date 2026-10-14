@@ -7,6 +7,8 @@ import '@tabler/core/dist/css/tabler.min.css'
 import '@tabler/core/dist/css/tabler-themes.min.css'
 // Import our custom styles after Tabler
 import './styles/main.scss'
+// The Peskas logo's colours, light and dark (synced from peskas-context/brand).
+import './components/peskas-logo.css'
 
 // Initialize Sentry error monitoring
 import { initSentry } from './lib/sentry'
