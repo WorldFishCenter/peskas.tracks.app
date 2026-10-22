@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePostHog } from '@posthog/react';
 import { findUserByIMEI } from '../api/authService';
 import { apiFetch } from '../api/httpClient';
 import { setUser as setSentryUser } from '../lib/sentry';
@@ -69,6 +70,20 @@ const storeSession = (user: User & { token?: string | null }): User => {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const posthog = usePostHog();
+
+  // Ties PostHog's events to the signed-in account, restored sessions included:
+  // its id, role, community and region, never its name or IMEI. Every demo
+  // visitor shares one id, so they stay anonymous rather than merge into one person.
+  useEffect(() => {
+    if (currentUser && currentUser.id !== DEMO_USER_ID) {
+      posthog?.identify(currentUser.id, {
+        role: currentUser.role,
+        community: currentUser.community,
+        region: currentUser.region,
+      });
+    }
+  }, [posthog, currentUser]);
 
   useEffect(() => {
     try {
@@ -187,6 +202,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Clear Sentry user context
     setSentryUser(null);
+
+    // A new anonymous id, so the next person on a shared phone is not merged with this one
+    posthog?.reset();
   };
 
   const updateUserImeis = (imeis: string[]) => {
