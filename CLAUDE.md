@@ -34,7 +34,7 @@ Administrators have no tracking device of their own. Call `hasTrackingDevice()` 
   - read only: `fishers-stats` and `fishers-performance`, written by `peskas.coasts::export_fishers_stats()`. A change to their shape there needs a matching change here.
 - Env vars: see `.env.example`. Key facts:
   - Server functions read `MONGODB_URI`, `MONGODB_DATABASE`, `AUTH_TOKEN_SECRET` (session tokens), `GLOBAL_PASSW`, `ALLOWED_ORIGINS`, and for the parquet fallback `GCP_SA_KEY` with `FALLBACK_PARQUET_BUCKET`/`_OBJECT` or `FALLBACK_PARQUET_URL`.
-  - The client reads `VITE_MAPBOX_TOKEN`, `VITE_API_TOKEN`/`VITE_API_SECRET` (Pelagic historical data), `VITE_PELAGIC_*` (live locations) and `VITE_SENTRY_DSN`. The Sentry build plugin needs `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT`.
+  - The client reads `VITE_MAPBOX_TOKEN`, `VITE_API_TOKEN`/`VITE_API_SECRET` (Pelagic historical data), `VITE_PELAGIC_*` (live locations), `VITE_SENTRY_DSN` (errors) and `VITE_POSTHOG_PROJECT_TOKEN`/`VITE_POSTHOG_HOST` (PostHog analytics and session replay, Production only; unset turns it off). The Sentry build plugin needs `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT`.
   - Anything prefixed `VITE_` is compiled into the public bundle.
 - i18n uses react-i18next with `src/i18n/locales/{en,sw,pt}.json`.
 - Domain vocabulary is defined in `CONTEXT.md` (fisher, vessel, fisher identity, trip, ...). `docs/` is gitignored and exists only on machines that have a local copy. Decisions are recorded in `docs/adr/`. Pelagic API notes are in `docs/pelagic_api_documentation.md`, deployment notes in `docs/VERCEL_DEPLOYMENT.md`.

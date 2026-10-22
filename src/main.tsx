@@ -1,5 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import posthog from 'posthog-js'
+import { PostHogProvider } from '@posthog/react'
 import App from './App'
 // Import Tabler CSS from node_modules
 import '@tabler/core/dist/css/tabler.min.css'
@@ -18,6 +20,16 @@ import { initializeOfflineSupport, registerServiceWorkerForOfflineSupport, unreg
 
 // Initialize Sentry as early as possible
 initSentry();
+
+// PostHog (EU cloud): page views, clicks and session replays. Off where the token is
+// unset, as in local dev and previews. Errors stay with Sentry.
+const posthogToken = import.meta.env.VITE_POSTHOG_PROJECT_TOKEN;
+if (posthogToken) {
+  posthog.init(posthogToken, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST,
+    defaults: '2026-08-30',
+  });
+}
 
 // Apply the specific Tabler theme settings you requested
 const html = document.documentElement;
@@ -58,6 +70,8 @@ initializeApp();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <PostHogProvider client={posthog}>
+      <App />
+    </PostHogProvider>
   </React.StrictMode>,
 )
