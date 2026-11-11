@@ -71,10 +71,11 @@ npm run dev:all                   # frontend and api/ functions at http://localh
 - `MONGODB_DATABASE`: `portal-prod` in production.
 - `AUTH_TOKEN_SECRET`: signs session tokens.
 - `ALLOWED_ORIGINS`: origins allowed to call the API.
+- `PDS_USERNAME`, `PDS_PASSWORD` and `PDS_CUSTOMER_ID`: the Pelagic Data Systems login for live boat positions.
 - `GCP_SA_KEY` with `FALLBACK_PARQUET_BUCKET` and `FALLBACK_PARQUET_OBJECT`, or `FALLBACK_PARQUET_URL`: backup copy of the tracks, used when Pelagic Data Systems is unavailable.
 - `GLOBAL_PASSW`: signs in as any fisher. Set it only in the Vercel Development environment.
 
-The client reads `VITE_MAPBOX_TOKEN`, the Pelagic Data Systems settings (`VITE_API_TOKEN`, `VITE_API_SECRET`, `VITE_PELAGIC_*`) and `VITE_SENTRY_DSN`. `.env.example` lists them all.
+The client reads `VITE_MAPBOX_TOKEN`, the Pelagic Data Systems settings (`VITE_API_TOKEN`, `VITE_API_SECRET`) and `VITE_SENTRY_DSN`. `.env.example` lists them all.
 
 **Main commands**
 

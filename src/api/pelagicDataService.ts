@@ -812,173 +812,45 @@ export const getDateRangeForLastDays = (days: number): {dateFrom: Date, dateTo: 
   return { dateFrom, dateTo };
 }; 
 
-// Pelagic Analytics API Service for Live Location Data
-// Uses the new authentication-based API instead of token/secret
-
-// Get API credentials from environment variables
-const PELAGIC_API_BASE_URL = import.meta.env.VITE_PELAGIC_API_BASE_URL || 'https://analytics.pelagicdata.com/api';
-const API_USERNAME = import.meta.env.VITE_PELAGIC_USERNAME;
-const API_PASSWORD = import.meta.env.VITE_PELAGIC_PASSWORD;
-const CUSTOMER_ID = import.meta.env.VITE_PELAGIC_CUSTOMER_ID;
-
-// Cache for authentication token
-const authCache: {
-  token: string | null,
-  refreshToken: string | null,
-  expiresAt: Date | null
-} = {
-  token: null,
-  refreshToken: null,
-  expiresAt: null
-};
-
 /**
- * Authenticate with Pelagic Analytics API
- */
-const authenticate = async (): Promise<{token: string | null, refreshToken: string | null}> => {
-  // Check if we have a valid cached token
-  if (authCache.token && authCache.expiresAt && new Date() < authCache.expiresAt) {
-    return {
-      token: authCache.token,
-      refreshToken: authCache.refreshToken
-    };
-  }
-
-  console.log('Authenticating with Pelagic Analytics API...');
-  
-  // Validate that API credentials are configured
-  if (!API_USERNAME || !API_PASSWORD || !CUSTOMER_ID) {
-    throw new Error('Pelagic API credentials not configured');
-  }
-  
-  try {
-    const response = await externalFetch(`${PELAGIC_API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Accept-Encoding': 'gzip, deflate, br'
-      },
-      body: {
-        username: API_USERNAME,
-        password: API_PASSWORD
-      },
-      timeoutMs: 10000 // 10 second timeout for auth
-    });
-
-    if (!response.ok) {
-      throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-    }
-
-    const authData = await response.json();
-    
-    // Cache the token (assume it expires in 1 hour if not specified)
-    authCache.token = authData.token;
-    authCache.refreshToken = authData.refreshToken;
-    authCache.expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
-    
-    console.log('Successfully authenticated with Pelagic Analytics API');
-    return authData;
-  } catch (error) {
-    console.error('Failed to authenticate:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch live location data for specific devices
+ * Fetch live location data for specific devices, through our own server,
+ * which holds the PDS login.
  */
 export const fetchLiveLocations = async (imeis?: string[]): Promise<LiveLocation[]> => {
   if (isDemoMode()) {
     return fetchDemoLiveLocations();
   }
 
-  // Check cache first
+  if (!imeis || imeis.length === 0) {
+    return [];
+  }
+
   const cacheKey = getGenericCacheKey('liveLocations', { imeis });
   const cachedData = getCachedData(cacheKey);
   if (cachedData) {
     console.log('📋 Using cached live locations data');
     return cachedData;
   }
-  
+
   try {
-    // Authenticate first
-    const { token } = await authenticate();
-    
-    // Prepare request body with filters
-    const requestBody = {
-      customers: [
-        {
-          entityType: "CUSTOMER",
-          id: CUSTOMER_ID
-        }
-      ],
-      boats: [],
-      imeis: imeis ? imeis.map(imei => parseInt(imei)) : []
-    };
-    
-    console.log('📡 Fetching live locations from API');
-    
-    const response = await externalFetch(`${PELAGIC_API_BASE_URL}/pds/devices`, {
-      method: 'POST',
-      headers: {
-        'X-Authorization': `Bearer ${token}`,
-        'Accept-Encoding': 'gzip, deflate, br'
-      },
-      body: requestBody,
+    const response = await apiFetch('/live-locations', {
+      query: { imeis: imeis.join(',') },
       timeoutMs: 15000
     });
-    
+
     if (!response.ok) {
-      console.error(`❌ API request failed: ${response.status} ${response.statusText}`);
-      
-      if (response.status === 401) {
-        // Token might be expired, clear cache and retry once
-        authCache.token = null;
-        authCache.expiresAt = null;
-        console.log('🔑 Token expired, retrying authentication...');
-        
-        const { token: newToken } = await authenticate();
-        const retryResponse = await externalFetch(`${PELAGIC_API_BASE_URL}/pds/devices`, {
-          method: 'POST',
-          headers: {
-            'X-Authorization': `Bearer ${newToken}`,
-            'Accept-Encoding': 'gzip, deflate, br'
-          },
-          body: requestBody,
-          timeoutMs: 15000
-        });
-        
-        if (!retryResponse.ok) {
-          throw new Error(`API request failed after retry: ${retryResponse.status} ${retryResponse.statusText}`);
-        }
-        
-        const retryData = await retryResponse.json();
-        console.log(`✅ Successfully retrieved ${retryData.length} device records after retry (REAL API DATA)`);
-        const parsedRetryData = parseLiveLocationData(retryData);
-
-        // Cache the results with 1-minute duration (live data should refresh frequently)
-        const liveLocationCacheDuration = 1 * 60 * 1000; // 1 minute
-        setCachedData(cacheKey, parsedRetryData, liveLocationCacheDuration);
-
-        return parsedRetryData;
-      }
-      
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
-    
+
     const data = await response.json();
-    console.log(`✅ Successfully retrieved ${data.length} device records (REAL API DATA)`);
-    
     const parsedData = parseLiveLocationData(data);
 
-    // Cache the results with 1-minute duration (live data should refresh frequently)
-    const liveLocationCacheDuration = 1 * 60 * 1000; // 1 minute
-    setCachedData(cacheKey, parsedData, liveLocationCacheDuration);
+    // Live data should refresh often.
+    setCachedData(cacheKey, parsedData, 60 * 1000);
 
     return parsedData;
   } catch (error) {
     console.error('❌ Error fetching live locations:', error);
-    
-    // Just throw the error - no mock data fallbacks
     throw error;
   }
 };

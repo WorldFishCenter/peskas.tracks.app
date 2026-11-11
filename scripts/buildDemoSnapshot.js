@@ -23,7 +23,7 @@
  * Usage:
  *   npm run demo:snapshot -- --imei <imei> --from 2025-09-01 --to 2025-12-01
  *
- * Reads VITE_API_TOKEN and VITE_API_SECRET (and VITE_PELAGIC_* for the device
+ * Reads VITE_API_TOKEN and VITE_API_SECRET (and PDS_* for the device
  * timezone) from .env.local and .env. src/api/demoTracksService.test.ts checks
  * the file it writes for anything identifying, so run the tests afterwards.
  */
@@ -214,11 +214,11 @@ function parseTrips(csvChunks) {
 
 /** The device's timezone and battery state; the only device fields we keep. */
 async function fetchDeviceState(imei) {
-  const base = process.env.VITE_PELAGIC_API_BASE_URL || 'https://analytics.pelagicdata.com/api';
-  const { VITE_PELAGIC_USERNAME: username, VITE_PELAGIC_PASSWORD: password, VITE_PELAGIC_CUSTOMER_ID: customerId } = process.env;
+  const base = 'https://analytics.pelagicdata.com/api';
+  const { PDS_USERNAME: username, PDS_PASSWORD: password, PDS_CUSTOMER_ID: customerId } = process.env;
 
   if (!username || !password || !customerId) {
-    console.warn('VITE_PELAGIC_* not set: using UTC as the demo timezone');
+    console.warn('PDS_* not set: using UTC as the demo timezone');
     return { timezone: 'UTC' };
   }
 
