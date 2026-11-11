@@ -23,7 +23,7 @@
  * Usage:
  *   npm run demo:snapshot -- --imei <imei> --from 2025-09-01 --to 2025-12-01
  *
- * Reads VITE_API_TOKEN and VITE_API_SECRET (and PDS_* for the device
+ * Reads PDS_TOKEN and PDS_SECRET (and PDS_USERNAME etc. for the device
  * timezone) from .env.local and .env. src/api/demoTracksService.test.ts checks
  * the file it writes for anything identifying, so run the tests afterwards.
  */
@@ -68,12 +68,12 @@ if (!args.imei || !args.from || !args.to) {
   process.exit(1);
 }
 
-const API_BASE_URL = process.env.VITE_API_BASE_URL || 'https://analytics.pelagicdata.com/api';
-const API_TOKEN = process.env.VITE_API_TOKEN;
-const API_SECRET = process.env.VITE_API_SECRET;
+const API_BASE_URL = 'https://analytics.pelagicdata.com/api';
+const API_TOKEN = process.env.PDS_TOKEN;
+const API_SECRET = process.env.PDS_SECRET;
 
 if (!API_TOKEN || !API_SECRET) {
-  console.error('Error: VITE_API_TOKEN and VITE_API_SECRET must be set');
+  console.error('Error: PDS_TOKEN and PDS_SECRET must be set');
   process.exit(1);
 }
 
@@ -218,7 +218,7 @@ async function fetchDeviceState(imei) {
   const { PDS_USERNAME: username, PDS_PASSWORD: password, PDS_CUSTOMER_ID: customerId } = process.env;
 
   if (!username || !password || !customerId) {
-    console.warn('PDS_* not set: using UTC as the demo timezone');
+    console.warn('PDS_USERNAME, PDS_PASSWORD or PDS_CUSTOMER_ID not set: using UTC as the demo timezone');
     return { timezone: 'UTC' };
   }
 

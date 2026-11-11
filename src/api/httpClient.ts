@@ -6,16 +6,13 @@
  * retry, a log line — has one edit site rather than twenty-one. This is the
  * plumbing step 1 of docs/API-AUTH-PLAN.md asks for; step 3 attaches the token.
  *
- * Three doors, and the difference is the point:
+ * Two doors, and the difference is the point:
  *
  *   apiFetch(path, …)      our own serverless functions under `/api`, same origin
- *   externalFetch(url, …)  a third party — today the Pelagic Analytics API
  *   assetFetch(path, …)    a static file shipped in `public/`
  *
- * Anything identifying this app's user belongs on the first and never on the
- * second: a session token sent to another host is a credential handed to a
- * stranger. They share the plumbing below, but only `apiFetch` will carry the
- * token.
+ * Only `apiFetch` carries the session token. Third parties such as Pelagic are
+ * reached through our own functions, so their credentials stay on the server.
  *
  * Both return the raw `Response`. Status handling stays with the callers, who
  * translate failures into their own user-facing, translated messages.
@@ -73,14 +70,6 @@ export function apiFetch(path: string, options: RequestOptions = {}): Promise<Re
       ? { Authorization: `Bearer ${token}`, ...options.headers }
       : options.headers
   });
-}
-
-/**
- * Call a third-party API by absolute URL. Deliberately separate from
- * `apiFetch`: nothing that identifies our user may travel this way.
- */
-export function externalFetch(url: string, options: RequestOptions = {}): Promise<Response> {
-  return request(url, options);
 }
 
 /**

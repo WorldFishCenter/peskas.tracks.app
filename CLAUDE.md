@@ -28,13 +28,13 @@ Administrators have no tracking device of their own. Call `hasTrackingDevice()` 
 ## Architecture
 
 - `api/` holds the whole backend. Read the directory for the routes, and `api/_utils/` for the shared Mongo connection, tokens, rate limiting, validation and fisher identity resolution (`fisherIdentity.js`).
-- The frontend calls Pelagic Analytics directly for trips and points (`src/api/pelagicDataService.ts`). Live locations go through `api/live-locations.js`, which holds the PDS login and shares one login across requests. `api/fallback/points.js` serves a parquet copy of the tracks from GCS when Pelagic is unavailable.
+- The frontend reaches Pelagic Analytics only through our own functions, so PDS credentials stay on the server: `api/pds-history.js` for trips and points (token and secret; the whole fleet only for a signed-in administrator) and `api/live-locations.js` for live locations (login, shared across requests). `api/fallback/points.js` serves a parquet copy of the tracks from GCS when Pelagic is unavailable.
 - MongoDB collections, in `portal-prod` / `portal-dev`:
   - read and written by the app: `users`, `catch-events`, `waypoints`, `feedback`.
   - read only: `fishers-stats` and `fishers-performance`, written by `peskas.coasts::export_fishers_stats()`. A change to their shape there needs a matching change here.
 - Env vars: see `.env.example`. Key facts:
-  - Server functions read `MONGODB_URI`, `MONGODB_DATABASE`, `AUTH_TOKEN_SECRET` (session tokens), `GLOBAL_PASSW`, `ALLOWED_ORIGINS`, `PDS_USERNAME`/`PDS_PASSWORD`/`PDS_CUSTOMER_ID` (live locations), and for the parquet fallback `GCP_SA_KEY` with `FALLBACK_PARQUET_BUCKET`/`_OBJECT` or `FALLBACK_PARQUET_URL`.
-  - The client reads `VITE_MAPBOX_TOKEN`, `VITE_API_TOKEN`/`VITE_API_SECRET` (Pelagic historical data), `VITE_SENTRY_DSN` (errors) and `VITE_POSTHOG_PROJECT_TOKEN`/`VITE_POSTHOG_HOST` (PostHog analytics and session replay, Production only; unset turns it off). The Sentry build plugin needs `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT`.
+  - Server functions read `MONGODB_URI`, `MONGODB_DATABASE`, `AUTH_TOKEN_SECRET` (session tokens), `GLOBAL_PASSW`, `ALLOWED_ORIGINS`, `PDS_TOKEN`/`PDS_SECRET` (trips and points), `PDS_USERNAME`/`PDS_PASSWORD`/`PDS_CUSTOMER_ID` (live locations), and for the parquet fallback `GCP_SA_KEY` with `FALLBACK_PARQUET_BUCKET`/`_OBJECT` or `FALLBACK_PARQUET_URL`.
+  - The client reads `VITE_MAPBOX_TOKEN`, `VITE_SENTRY_DSN` (errors) and `VITE_POSTHOG_PROJECT_TOKEN`/`VITE_POSTHOG_HOST` (PostHog analytics and session replay, Production only; unset turns it off). The Sentry build plugin needs `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT`.
   - Anything prefixed `VITE_` is compiled into the public bundle.
 - i18n uses react-i18next with `src/i18n/locales/{en,sw,pt}.json`.
 - Domain vocabulary is defined in `CONTEXT.md` (fisher, vessel, fisher identity, trip, ...). `docs/` is gitignored and exists only on machines that have a local copy. Decisions are recorded in `docs/adr/`. Pelagic API notes are in `docs/pelagic_api_documentation.md`, deployment notes in `docs/VERCEL_DEPLOYMENT.md`.

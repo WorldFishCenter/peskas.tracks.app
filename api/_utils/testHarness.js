@@ -65,6 +65,10 @@ export function mockRequest({ method = 'GET', body = {}, query = {}, headers = {
       result.headers[name] = value;
       return res;
     },
+    write(chunk) {
+      result.text = (result.text ?? '') + Buffer.from(chunk).toString();
+      return true;
+    },
     end() {
       result.status ??= 200;
       return res;

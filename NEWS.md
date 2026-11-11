@@ -2,6 +2,7 @@
 
 ### Improvements
 - **Safer Live Locations**: The live position of a boat now comes through our own server, so the tracking provider's password no longer reaches the browser, and the app signs in to the provider far less often.
+- **Safer Trip Data**: Trips and tracks also come through our own server, so the tracking provider's access key is no longer in the app, and only an administrator can load the whole fleet at once.
 
 # tracks-explorer 2.10
 

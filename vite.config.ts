@@ -62,7 +62,7 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: /^https:\/\/analytics\.pelagicdata\.com\/api\/.*/i,
+            urlPattern: /\/api\/pds-history/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'pelagic-api-cache',

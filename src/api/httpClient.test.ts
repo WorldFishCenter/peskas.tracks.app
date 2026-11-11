@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiFetch, externalFetch } from './httpClient';
+import { apiFetch } from './httpClient';
 
 /**
  * These pin the plumbing the service modules now rely on: where a request
@@ -94,22 +94,6 @@ describe('apiFetch', () => {
   });
 });
 
-describe('externalFetch', () => {
-  it('uses the absolute URL as given, without the /api prefix', async () => {
-    await externalFetch('https://analytics.example.com/v1/trips/2026-01-01/2026-01-02');
-
-    expect(lastCall().url).toBe('https://analytics.example.com/v1/trips/2026-01-01/2026-01-02');
-  });
-
-  it('appends query parameters after an existing query string', async () => {
-    await externalFetch('https://analytics.example.com/v1/points?imeis=1,2', {
-      query: { format: 'csv' }
-    });
-
-    expect(lastCall().url).toBe('https://analytics.example.com/v1/points?imeis=1,2&format=csv');
-  });
-});
-
 describe('timeouts', () => {
   it('aborts the request once timeoutMs elapses', async () => {
     vi.stubGlobal('fetch', (_url: string, init: RequestInit = {}) =>
@@ -147,17 +131,6 @@ describe('the session token', () => {
     expect(lastCall().init.headers).toMatchObject({
       Authorization: 'Bearer a.signed.token'
     });
-  });
-
-  // The point of keeping externalFetch separate. A session token sent to
-  // another host is a credential handed to a stranger, and the Pelagic
-  // Analytics API has no business holding ours.
-  it('never leaves our own origin', async () => {
-    store.set('authToken', 'a.signed.token');
-
-    await externalFetch('https://analytics.example.com/v1/trips');
-
-    expect(JSON.stringify(lastCall().init.headers ?? {})).not.toContain('a.signed.token');
   });
 
   it('is simply absent when nobody is signed in', async () => {

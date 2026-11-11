@@ -1,6 +1,6 @@
 import { format, addDays, subDays, isToday, differenceInHours } from 'date-fns';
 import type { Trip, TripPoint, LiveLocation } from '../types';
-import { apiFetch, externalFetch } from './httpClient';
+import { apiFetch, type QueryParams } from './httpClient';
 import { isDemoMode } from '../utils/demoData';
 import { fetchDemoTripPoints, fetchDemoLiveLocations } from './demoTracksService';
 
@@ -87,10 +87,12 @@ const setCachedData = (key: string, data: any, cacheDuration: number): void => {
   console.log(`📋 Cache SET (duration: ${cacheDuration / 1000}s)`);
 };
 
-// Get API credentials from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://analytics.pelagicdata.com/api';
-const API_TOKEN = import.meta.env.VITE_API_TOKEN || '{$token}'; 
-const API_SECRET = import.meta.env.VITE_API_SECRET || '{$secret}';
+/** Pelagic's historical trips and points, through our server, which holds the PDS token. */
+const fetchPdsHistory = (path: string, query: QueryParams, timeoutMs: number): Promise<Response> =>
+  apiFetch('/pds-history', { query: { path, ...query }, timeoutMs });
+
+const commaList = (values?: string[]): string | undefined =>
+  values && values.length > 0 ? values.join(',') : undefined;
 
 export interface TripsFilter {
   dateFrom: Date;
@@ -130,40 +132,13 @@ export const fetchTripsFromAPI = async (filter: TripsFilter): Promise<Trip[]> =>
 
   console.log(`📅 Fetching trips metadata: ${dateFrom} to ${dateTo}${isToday(filter.dateTo) ? ' (today+1 buffer)' : ''}`);
 
-  let url = `${API_BASE_URL}/${API_TOKEN}/v1/trips/${dateFrom}/${dateTo}`;
-
-  // Add query parameters
-  const params: string[] = [];
-
-  if (filter.imeis && filter.imeis.length > 0) {
-    params.push(`imeis=${filter.imeis.join(',')}`);
-  }
-
-  if (filter.includeDeviceInfo) {
-    params.push('deviceInfo=true');
-  }
-
-  if (filter.includeLastSeen) {
-    params.push('withLastSeen=true');
-  }
-
-  if (filter.tags && filter.tags.length > 0) {
-    params.push(`tags=${filter.tags.join(',')}`);
-  }
-
-  if (params.length > 0) {
-    url += `?${params.join('&')}`;
-  }
-
   try {
-    const response = await externalFetch(url, {
-      headers: {
-        'X-API-SECRET': API_SECRET,
-        'Content-Type': 'application/json',
-        'Accept-Encoding': 'gzip, deflate, br'
-      },
-      timeoutMs: 15000
-    });
+    const response = await fetchPdsHistory(`trips/${dateFrom}/${dateTo}`, {
+      imeis: commaList(filter.imeis),
+      deviceInfo: filter.includeDeviceInfo || undefined,
+      withLastSeen: filter.includeLastSeen || undefined,
+      tags: commaList(filter.tags)
+    }, 15000);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch trips: ${response.status} ${response.statusText}`);
@@ -347,14 +322,7 @@ export const fetchFleetTripActivity = async (): Promise<FleetTripActivity> => {
       // cut off by the API reading the end date as midnight UTC.
       const dateTo = format(addDays(today, 1), 'yyyy-MM-dd');
 
-      const response = await externalFetch(
-        `${API_BASE_URL}/${API_TOKEN}/v1/trips/${dateFrom}/${dateTo}`,
-        {
-          query: { deviceInfo: true },
-          headers: { 'X-API-SECRET': API_SECRET },
-          timeoutMs: 30000
-        }
-      );
+      const response = await fetchPdsHistory(`trips/${dateFrom}/${dateTo}`, { deviceInfo: true }, 30000);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch fleet trips: ${response.status} ${response.statusText}`);
@@ -442,16 +410,8 @@ export const fetchTrips = async (filter: TripsFilter): Promise<Trip[]> => {
  * Fallback: fetch points via /v1/trips/{id}/points when /v1/points returns empty.
  */
 const fetchTripPointsForTripId = async (tripId: string, imei?: string): Promise<TripPoint[]> => {
-  const url = `${API_BASE_URL}/${API_TOKEN}/v1/trips/${tripId}/points`;
-
   try {
-    const response = await externalFetch(url, {
-      headers: {
-        'X-API-SECRET': API_SECRET,
-        'Accept': 'text/csv,*/*;q=0.8'
-      },
-      timeoutMs: 15000
-    });
+    const response = await fetchPdsHistory(`trips/${tripId}/points`, {}, 15000);
 
     if (!response.ok) {
       console.error(`Trip points request failed (${tripId}): ${response.status} ${response.statusText}`);
@@ -557,44 +517,14 @@ export const fetchTripPoints = async (filter: PointsFilter): Promise<TripPoint[]
 
   console.log(`📅 Date range: ${dateFrom} to ${dateTo}${isToday(filter.dateTo) ? ' (today+1 buffer)' : ''}`);
   
-  let url = `${API_BASE_URL}/${API_TOKEN}/v1/points/${dateFrom}/${dateTo}`;
-  
-  // Add query parameters
-  const params: string[] = [];
-  
-  if (filter.imeis && filter.imeis.length > 0) {
-    params.push(`imeis=${filter.imeis.join(',')}`);
-  }
-  
-  if (filter.includeDeviceInfo) {
-    params.push('deviceInfo=true');
-  }
-  
-  if (filter.includeErrant) {
-    params.push('errant=true');
-  }
-  
-  if (filter.includeLastSeen) {
-    params.push('withLastSeen=true');
-  }
-  
-  if (filter.tags && filter.tags.length > 0) {
-    params.push(`tags=${filter.tags.join(',')}`);
-  }
-  
-  if (params.length > 0) {
-    url += `?${params.join('&')}`;
-  }
-  
   try {
-    const response = await externalFetch(url, {
-      headers: {
-        'X-API-SECRET': API_SECRET,
-        'Content-Type': 'application/json',
-        'Accept-Encoding': 'gzip, deflate, br'
-      },
-      timeoutMs: 15000
-    });
+    const response = await fetchPdsHistory(`points/${dateFrom}/${dateTo}`, {
+      imeis: commaList(filter.imeis),
+      deviceInfo: filter.includeDeviceInfo || undefined,
+      errant: filter.includeErrant || undefined,
+      withLastSeen: filter.includeLastSeen || undefined,
+      tags: commaList(filter.tags)
+    }, 15000);
     
     if (!response.ok) {
       console.error(`API request failed with status: ${response.status}`);
