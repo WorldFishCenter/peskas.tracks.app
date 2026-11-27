@@ -1,51 +1,55 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconLanguage, IconCheck, IconChevronDown } from '@tabler/icons-react';
+import { CheckIcon, ChevronDownIcon, LanguagesIcon } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const LanguageSwitcher: React.FC = () => {
   const { t } = useTranslation();
   const { languages, currentLanguage, changeLanguage } = useLanguage();
 
-  const handleLanguageChange = (languageCode: string) => {
-    changeLanguage(languageCode);
-  };
-
   return (
-    <div className="nav-item dropdown me-2 d-none d-md-flex">
-      <a
-        href="#"
-        className="nav-link d-flex align-items-center px-2 py-2"
-        data-bs-toggle="dropdown"
-        aria-label={t('language.selectLanguage')}
-        style={{ minHeight: '44px' }}
-      >
-        <IconLanguage size={20} className="me-1" />
-        <IconChevronDown size={16} />
-      </a>
-      <div className="dropdown-menu dropdown-menu-end dropdown-menu-arrow" style={{ minWidth: '200px' }}>
-        {languages.map((language) => (
-          <a
-            key={language.code}
-            href="#"
-            className={`dropdown-item d-flex align-items-center ${
-              currentLanguage.code === language.code ? 'active' : ''
-            }`}
-            onClick={(e) => {
-              e.preventDefault();
-              handleLanguageChange(language.code);
-            }}
-          >
-            <span className="me-2">{language.flag}</span>
-            <span className="flex-grow-1">{language.name}</span>
-            {currentLanguage.code === language.code && (
-              <IconCheck size={16} className="text-primary" />
-            )}
-          </a>
-        ))}
-      </div>
+    <div className="hidden md:flex items-center">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={t('language.selectLanguage')}
+            />
+          }
+        >
+          <LanguagesIcon data-icon="inline-start" />
+          <ChevronDownIcon data-icon="inline-end" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuGroup>
+            {languages.map((language) => (
+              <DropdownMenuItem
+                key={language.code}
+                onClick={() => changeLanguage(language.code)}
+                className="flex items-center gap-2"
+              >
+                <span>{language.flag}</span>
+                <span className="flex-1">{language.name}</span>
+                {currentLanguage.code === language.code && (
+                  <CheckIcon className="text-primary" />
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 };
 
-export default LanguageSwitcher; 
+export default LanguageSwitcher;

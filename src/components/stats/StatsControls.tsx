@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { subDays, differenceInDays } from 'date-fns';
-import { IconCalendar } from '@tabler/icons-react';
+import { subDays, differenceInDays, isToday } from 'date-fns';
+import { CalendarIcon } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface StatsControlsProps {
   dateFrom: Date;
@@ -16,17 +20,18 @@ const StatsControls: React.FC<StatsControlsProps> = ({
   dateTo,
   compareWith,
   onDateChange,
-  onCompareChange
+  onCompareChange,
 }) => {
   const { t } = useTranslation();
   const [activePreset, setActivePreset] = useState<string>('last30Days');
 
-  // Detect which preset is active based on date range
   useEffect(() => {
     const now = new Date();
     const daysDiff = differenceInDays(now, dateFrom);
 
-    if (daysDiff === 7) {
+    if (!isToday(dateTo)) {
+      setActivePreset('custom');
+    } else if (daysDiff === 7) {
       setActivePreset('last7Days');
     } else if (daysDiff === 30) {
       setActivePreset('last30Days');
@@ -59,9 +64,7 @@ const StatsControls: React.FC<StatsControlsProps> = ({
     onDateChange(from, now);
   };
 
-  const formatDateForInput = (date: Date): string => {
-    return date.toISOString().split('T')[0];
-  };
+  const formatDateForInput = (date: Date): string => date.toISOString().split('T')[0];
 
   const handleDateFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = new Date(e.target.value);
@@ -78,95 +81,79 @@ const StatsControls: React.FC<StatsControlsProps> = ({
   };
 
   return (
-    <div className="card mb-3">
-      <div className="card-body">
-        <div className="row g-3">
+    <Card>
+      <CardContent>
+        <FieldGroup className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Date Range Selection */}
-          <div className="col-12 col-md-6">
-            <label className="form-label">
-              <IconCalendar className="me-2" size={18} />
+          <Field>
+            <FieldLabel className="flex items-center gap-1.5">
+              <CalendarIcon className="size-4 text-primary" />
               {t('stats.dateRange')}
-            </label>
-            <div className="row g-2">
-              <div className="col-6">
-                <input
+            </FieldLabel>
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
                   type="date"
-                  className="form-control"
                   value={formatDateForInput(dateFrom)}
                   onChange={handleDateFromChange}
                   max={formatDateForInput(dateTo)}
                 />
-              </div>
-              <div className="col-6">
-                <input
+                <Input
                   type="date"
-                  className="form-control"
                   value={formatDateForInput(dateTo)}
                   onChange={handleDateToChange}
                   min={formatDateForInput(dateFrom)}
                   max={formatDateForInput(new Date())}
                 />
               </div>
+              <ToggleGroup
+                value={activePreset !== 'custom' ? [activePreset] : []}
+                onValueChange={(values) => {
+                  const next = values[0] ?? (activePreset !== 'custom' ? activePreset : undefined);
+                  if (next) handlePresetChange(next);
+                }}
+                variant="outline"
+                spacing={0}
+                size="sm"
+                className="grid w-full grid-cols-3"
+              >
+                <ToggleGroupItem value="last7Days" className="w-full">
+                  {t('stats.last7Days')}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="last30Days" className="w-full">
+                  {t('stats.last30Days')}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="last90Days" className="w-full">
+                  {t('stats.last90Days')}
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
-            {/* Quick presets */}
-            <div className="btn-group mt-2 w-100" role="group">
-              <button
-                type="button"
-                className={`btn btn-sm ${activePreset === 'last7Days' ? 'btn-primary' : ''}`}
-                onClick={() => handlePresetChange('last7Days')}
-              >
-                {t('stats.last7Days')}
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${activePreset === 'last30Days' ? 'btn-primary' : ''}`}
-                onClick={() => handlePresetChange('last30Days')}
-              >
-                {t('stats.last30Days')}
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${activePreset === 'last90Days' ? 'btn-primary' : ''}`}
-                onClick={() => handlePresetChange('last90Days')}
-              >
-                {t('stats.last90Days')}
-              </button>
-            </div>
-          </div>
+          </Field>
 
           {/* Comparison Toggle */}
-          <div className="col-12 col-md-6">
-            <label className="form-label">{t('stats.compareWith')}</label>
-            <div className="btn-group w-100" role="group">
-              <input
-                type="radio"
-                className="btn-check"
-                name="compareWith"
-                id="compare-community"
-                checked={compareWith === 'community'}
-                onChange={() => onCompareChange('community')}
-              />
-              <label className="btn btn-outline-primary" htmlFor="compare-community">
+          <Field>
+            <FieldLabel>{t('stats.compareWith')}</FieldLabel>
+            <ToggleGroup
+              value={[compareWith]}
+              onValueChange={(values) => {
+                const next = values[0] as 'community' | 'previous' | undefined;
+                if (next) onCompareChange(next);
+              }}
+              variant="outline"
+              spacing={0}
+              className="grid w-full grid-cols-2"
+            >
+              <ToggleGroupItem value="community" className="h-9 w-full">
                 {t('stats.community')}
-              </label>
-
-              <input
-                type="radio"
-                className="btn-check"
-                name="compareWith"
-                id="compare-previous"
-                checked={compareWith === 'previous'}
-                onChange={() => onCompareChange('previous')}
-              />
-              <label className="btn btn-outline-primary" htmlFor="compare-previous">
+              </ToggleGroupItem>
+              <ToggleGroupItem value="previous" className="h-9 w-full">
                 {t('stats.previousPeriod')}
-              </label>
-
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </Field>
+        </FieldGroup>
+      </CardContent>
+    </Card>
   );
 };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-// Bootstrap's `md` breakpoint — the boundary the `d-md-*` utility classes switch
+// Tailwind's `md` breakpoint — the boundary the `md:*` utility classes switch
 // on. Anything that keys layout off the same boundary must read it from here,
 // otherwise a viewport can fall through both sides and render neither.
 export const MD_BREAKPOINT_PX = 768;

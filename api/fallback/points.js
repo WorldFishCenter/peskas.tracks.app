@@ -5,10 +5,7 @@ import { promises as fsp } from 'fs';
 import { tableFromIPC } from 'apache-arrow';
 import { initSync, readParquet } from 'parquet-wasm/esm';
 import { Storage } from '@google-cloud/storage';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { createEndpoint, ValidationError, NotFoundError } from '../_utils/endpoint.js';
 
 const FALLBACK_DIR = path.join(os.tmpdir(), 'fallback_tracks');
 const FALLBACK_CACHE_NAME = 'latest.parquet';
@@ -19,14 +16,12 @@ const FALLBACK_OBJECT = process.env.FALLBACK_PARQUET_OBJECT;
 let parquetInitialized = false;
 const initParquet = () => {
   if (parquetInitialized) return;
-  // In Vercel, the WASM file is in node_modules
   const wasmPath = path.join(process.cwd(), 'node_modules', 'parquet-wasm', 'esm', 'parquet_wasm_bg.wasm');
   const wasmBytes = fs.readFileSync(wasmPath);
   initSync({ module: wasmBytes });
   parquetInitialized = true;
 };
 
-// GCS client
 let storageClient = null;
 const getStorageClient = () => {
   if (storageClient) return storageClient;
@@ -42,7 +37,6 @@ const getStorageClient = () => {
   }
 };
 
-// Ensure fallback directory exists
 const ensureFallbackDir = async () => {
   try {
     await fsp.mkdir(FALLBACK_DIR, { recursive: true });
@@ -51,33 +45,27 @@ const ensureFallbackDir = async () => {
   }
 };
 
-// Get parquet file path (download if needed)
 const getParquetPath = async () => {
   await ensureFallbackDir();
 
-  // Check for existing files
   const existingFiles = fs.readdirSync(FALLBACK_DIR)
-    .filter(name => name.endsWith('.parquet'))
-    .map(name => path.join(FALLBACK_DIR, name));
+    .filter((name) => name.endsWith('.parquet'))
+    .map((name) => path.join(FALLBACK_DIR, name));
 
   if (existingFiles.length) {
-    const latestFile = existingFiles
-      .map(file => ({ file, mtime: fs.statSync(file).mtimeMs }))
+    return existingFiles
+      .map((file) => ({ file, mtime: fs.statSync(file).mtimeMs }))
       .sort((a, b) => b.mtime - a.mtime)[0].file;
-    return latestFile;
   }
 
-  // Try signed URL if provided
   const fallbackUrl = process.env.FALLBACK_PARQUET_URL;
   if (fallbackUrl) {
     try {
-      console.log('Downloading fallback parquet from URL');
       const resp = await fetch(fallbackUrl);
       if (resp.ok) {
         const buffer = Buffer.from(await resp.arrayBuffer());
         const cachedPath = path.join(FALLBACK_DIR, FALLBACK_CACHE_NAME);
         await fsp.writeFile(cachedPath, buffer);
-        console.log('Cached fallback parquet');
         return cachedPath;
       }
     } catch (err) {
@@ -85,117 +73,89 @@ const getParquetPath = async () => {
     }
   }
 
-  // Try GCS
   const storage = getStorageClient();
   if (storage && FALLBACK_BUCKET && FALLBACK_OBJECT) {
     try {
       const cachedPath = path.join(FALLBACK_DIR, FALLBACK_CACHE_NAME);
       await storage.bucket(FALLBACK_BUCKET).file(FALLBACK_OBJECT).download({ destination: cachedPath });
-      console.log(`Downloaded from gs://${FALLBACK_BUCKET}/${FALLBACK_OBJECT}`);
       return cachedPath;
     } catch (err) {
       console.error('Error downloading from GCS:', err);
     }
   }
 
-  console.warn('No fallback parquet available');
   return null;
 };
 
-// Serverless function handler
-export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Accept, Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export default createEndpoint({ methods: ['GET'], db: false }, async (req, res) => {
   const { dateFrom, dateTo, imeis } = req.query;
 
   if (!dateFrom || !dateTo) {
-    return res.status(400).json({ error: 'dateFrom and dateTo are required (YYYY-MM-DD)' });
+    throw new ValidationError('dateFrom and dateTo are required (YYYY-MM-DD)');
   }
 
-  try {
-    const parquetPath = await getParquetPath();
-    if (!parquetPath) {
-      return res.status(404).json({ error: 'No fallback parquet file available' });
-    }
-
-    // Read and parse parquet
-    initParquet();
-    const fileBuffer = fs.readFileSync(parquetPath);
-    const parquetTable = await readParquet(fileBuffer);
-    const ipcStream = parquetTable.intoIPCStream();
-    const arrowTable = tableFromIPC(ipcStream);
-
-    const fromTs = new Date(dateFrom).getTime();
-    const toTs = new Date(dateTo).getTime();
-    const imeiSet = imeis ? new Set(String(imeis).split(',').map(s => s.trim()).filter(Boolean)) : null;
-
-    const tripCol = arrowTable.getChild('Trip');
-    const timeCol = arrowTable.getChild('Time');
-    const latCol = arrowTable.getChild('Lat');
-    const lngCol = arrowTable.getChild('Lng');
-    const imeiCol = arrowTable.getChild('IMEI') || arrowTable.getChild('imei');
-
-    if (!tripCol || !timeCol || !latCol || !lngCol) {
-      return res.status(500).json({ error: 'Fallback parquet missing required columns (Trip, Time, Lat, Lng)' });
-    }
-
-    if (imeiSet && !imeiCol) {
-      console.warn('Fallback parquet missing IMEI column; cannot filter by IMEI');
-      console.warn('Returning all points for date range');
-    }
-
-    const points = [];
-    const rowCount = arrowTable.numRows ?? 0;
-
-    for (let i = 0; i < rowCount; i++) {
-      const rawTime = timeCol.get(i);
-      const ts = rawTime !== null && rawTime !== undefined
-        ? new Date(rawTime).getTime()
-        : NaN;
-      if (Number.isNaN(ts) || ts < fromTs || ts > toTs) continue;
-
-      const timeStr = new Date(ts).toISOString();
-      const recordImei = imeiCol ? imeiCol.get(i) : undefined;
-      const recordImeiStr = recordImei !== undefined && recordImei !== null ? String(recordImei) : undefined;
-      if (imeiSet && (!recordImeiStr || !imeiSet.has(recordImeiStr))) {
-        continue;
-      }
-
-      points.push({
-        time: timeStr,
-        timestamp: timeStr,
-        boat: '',
-        tripId: String(tripCol.get(i) ?? ''),
-        latitude: Number(latCol.get(i) ?? 0),
-        longitude: Number(lngCol.get(i) ?? 0),
-        speed: 0,
-        range: 0,
-        heading: 0,
-        boatName: '',
-        community: '',
-        tripCreated: '',
-        tripUpdated: '',
-        imei: recordImeiStr,
-        deviceId: recordImeiStr,
-        lastSeen: timeStr
-      });
-    }
-
-    res.json(points);
-  } catch (error) {
-    console.error('Error serving fallback parquet points:', error);
-    res.status(500).json({ error: 'Failed to read fallback parquet file', details: error.message });
+  const parquetPath = await getParquetPath();
+  if (!parquetPath) {
+    throw new NotFoundError('No fallback parquet file available');
   }
-}
+
+  initParquet();
+  const fileBuffer = fs.readFileSync(parquetPath);
+  const parquetTable = await readParquet(fileBuffer);
+  const ipcStream = parquetTable.intoIPCStream();
+  const arrowTable = tableFromIPC(ipcStream);
+
+  const fromTs = new Date(dateFrom).getTime();
+  const toTs = new Date(dateTo).getTime();
+  const imeiSet = imeis
+    ? new Set(String(imeis).split(',').map((s) => s.trim()).filter(Boolean))
+    : null;
+
+  const tripCol = arrowTable.getChild('Trip');
+  const timeCol = arrowTable.getChild('Time');
+  const latCol = arrowTable.getChild('Lat');
+  const lngCol = arrowTable.getChild('Lng');
+  const imeiCol = arrowTable.getChild('IMEI') || arrowTable.getChild('imei');
+
+  if (!tripCol || !timeCol || !latCol || !lngCol) {
+    throw new Error('Fallback parquet missing required columns (Trip, Time, Lat, Lng)');
+  }
+
+  const points = [];
+  const rowCount = arrowTable.numRows ?? 0;
+
+  for (let i = 0; i < rowCount; i++) {
+    const rawTime = timeCol.get(i);
+    const ts = rawTime !== null && rawTime !== undefined ? new Date(rawTime).getTime() : NaN;
+    if (Number.isNaN(ts) || ts < fromTs || ts > toTs) continue;
+
+    const timeStr = new Date(ts).toISOString();
+    const recordImei = imeiCol ? imeiCol.get(i) : undefined;
+    const recordImeiStr =
+      recordImei !== undefined && recordImei !== null ? String(recordImei) : undefined;
+    if (imeiSet && (!recordImeiStr || !imeiSet.has(recordImeiStr))) {
+      continue;
+    }
+
+    points.push({
+      time: timeStr,
+      timestamp: timeStr,
+      boat: '',
+      tripId: String(tripCol.get(i) ?? ''),
+      latitude: Number(latCol.get(i) ?? 0),
+      longitude: Number(lngCol.get(i) ?? 0),
+      speed: 0,
+      range: 0,
+      heading: 0,
+      boatName: '',
+      community: '',
+      tripCreated: '',
+      tripUpdated: '',
+      imei: recordImeiStr,
+      deviceId: recordImeiStr,
+      lastSeen: timeStr
+    });
+  }
+
+  return res.json(points);
+});

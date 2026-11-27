@@ -1,18 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFish, IconCheck, IconAlertTriangle, IconCalendar, IconPlus, IconBan, IconCloudUpload, IconGasStation } from '@tabler/icons-react';
+import {
+  AlertTriangleIcon,
+  BanIcon,
+  CalendarIcon,
+  CheckCircle2Icon,
+  CheckIcon,
+  CloudUploadIcon,
+  FishIcon,
+  FuelIcon,
+  MapPinIcon,
+  PlusIcon,
+  XIcon,
+} from 'lucide-react';
 import { Trip, MultipleCatchFormData, CatchEntry, GPSCoordinate } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatTripDate } from '../../utils/formatters';
 import { usePhotoHandling } from './hooks/usePhotoHandling';
-import { uploadManager } from '../../utils/uploadManager';
-import PayloadOptimizer from '../../utils/payloadOptimizer';
+import { catchOutbox } from '../../api/catchOutbox';
 import DateSelector from './DateSelector';
 import CatchEntryForm from './CatchEntryForm';
 import CatchSummary from './CatchSummary';
-import ModalShell from '../ModalShell';
-import { useIsDarkMode } from '../../hooks/useIsDarkMode';
 import NetworkStatus from '../NetworkStatus';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 
 interface ReportCatchFormProps {
   trip: Trip;
@@ -26,81 +62,75 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const isDarkMode = useIsDarkMode();
   const [isOfflineMode, setIsOfflineMode] = useState(false);
-  const [optimizationWarning, setOptimizationWarning] = useState<string[]>([]);
   const [submissionInProgress, setSubmissionInProgress] = useState(false);
 
-  // Check if this is a direct catch report (standalone trip)
   const isDirectCatch = trip.id.startsWith('standalone_');
 
-  // Form state for multiple catches
   const [formData, setFormData] = useState<MultipleCatchFormData>(() => ({
     tripId: trip.id,
     reportId: `report_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
     date: isDirectCatch ? new Date() : new Date(trip.endTime),
-    catches: [{
-      id: `catch_${Date.now()}`,
-      fishGroup: 'reef fish',
-      quantity: 0,
-      photos: [],
-      gps_photo: []
-    }],
-    noCatch: false
+    catches: [
+      {
+        id: `catch_${Date.now()}`,
+        fishGroup: 'reef fish',
+        quantity: 0,
+        photos: [],
+        gps_photo: [],
+      },
+    ],
+    noCatch: false,
   }));
 
-  // GPS location state for direct catch reports
   const [gpsLocationEnabled, setGpsLocationEnabled] = useState(false);
 
-  // Photo handling
-  const addPhotoToCatch = (catchEntryId: string, base64Photo: string, gpsCoordinate?: GPSCoordinate) => {
-    
-    setFormData(prev => {
-      const newData = {
-        ...prev,
-        catches: prev.catches.map(catchEntry => {
-          if (catchEntry.id === catchEntryId) {
-            const currentPhotos = catchEntry.photos || [];
-            const currentGPSCoordinates = catchEntry.gps_photo || [];
-            
-            if (currentPhotos.length >= 3) {
-              setError(t('catch.maxPhotosReached'));
-              return catchEntry;
-            }
-            
-            const updatedEntry = {
-              ...catchEntry,
-              photos: [...currentPhotos, base64Photo],
-              gps_photo: gpsCoordinate ? [...currentGPSCoordinates, gpsCoordinate] : currentGPSCoordinates
-            };
-            
-            return updatedEntry;
+  const addPhotoToCatch = (
+    catchEntryId: string,
+    base64Photo: string,
+    gpsCoordinate?: GPSCoordinate
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      catches: prev.catches.map((catchEntry) => {
+        if (catchEntry.id === catchEntryId) {
+          const currentPhotos = catchEntry.photos || [];
+          const currentGPSCoordinates = catchEntry.gps_photo || [];
+
+          if (currentPhotos.length >= 3) {
+            setError(t('catch.maxPhotosReached'));
+            return catchEntry;
           }
-          return catchEntry;
-        })
-      };
-      
-      return newData;
-    });
+
+          return {
+            ...catchEntry,
+            photos: [...currentPhotos, base64Photo],
+            gps_photo: gpsCoordinate
+              ? [...currentGPSCoordinates, gpsCoordinate]
+              : currentGPSCoordinates,
+          };
+        }
+        return catchEntry;
+      }),
+    }));
     setError(null);
-    setOptimizationWarning([]); // Clear optimization warnings when photos change
   };
 
   const removePhotoFromCatch = (catchEntryId: string, photoIndex: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      catches: prev.catches.map(catchEntry => {
+      catches: prev.catches.map((catchEntry) => {
         if (catchEntry.id === catchEntryId) {
           const currentPhotos = catchEntry.photos || [];
           const currentGPSCoordinates = catchEntry.gps_photo || [];
           return {
             ...catchEntry,
             photos: currentPhotos.filter((_, index) => index !== photoIndex),
-            gps_photo: currentGPSCoordinates.filter((_, index) => index !== photoIndex)
+            gps_photo: currentGPSCoordinates.filter((_, index) => index !== photoIndex),
           };
         }
         return catchEntry;
-      })
+      }),
     }));
   };
 
@@ -108,89 +138,82 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
     onError: setError,
     onPhotoAdd: addPhotoToCatch,
     onPhotoRemove: removePhotoFromCatch,
-    gpsLocationEnabled
+    gpsLocationEnabled,
   });
 
-  // Initialize camera support check
   useEffect(() => {
     photoHandling.checkCameraSupport();
   }, [photoHandling]);
 
-  // Date selection for direct catch reports
   const handleDateSelection = (daysAgo: number) => {
     const selectedDate = new Date();
     selectedDate.setDate(selectedDate.getDate() - daysAgo);
-    setFormData(prev => ({ ...prev, date: selectedDate }));
+    setFormData((prev) => ({ ...prev, date: selectedDate }));
   };
 
-  // Add a new catch entry
   const addCatchEntry = () => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      catches: [...prev.catches, {
-        id: `catch_${Date.now()}`,
-        fishGroup: 'reef fish',
-        quantity: 0,
-        photos: [],
-        gps_photo: []
-      }]
+      catches: [
+        ...prev.catches,
+        {
+          id: `catch_${Date.now()}`,
+          fishGroup: 'reef fish',
+          quantity: 0,
+          photos: [],
+          gps_photo: [],
+        },
+      ],
     }));
   };
 
-  // Remove a catch entry
   const removeCatchEntry = (id: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      catches: prev.catches.filter(catchEntry => catchEntry.id !== id)
+      catches: prev.catches.filter((catchEntry) => catchEntry.id !== id),
     }));
   };
 
-  // Update a specific catch entry
   const updateCatchEntry = (id: string, field: keyof CatchEntry, value: string | number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      catches: prev.catches.map(catchEntry => 
-        catchEntry.id === id 
-          ? { ...catchEntry, [field]: value }
-          : catchEntry
-      )
+      catches: prev.catches.map((catchEntry) =>
+        catchEntry.id === id ? { ...catchEntry, [field]: value } : catchEntry
+      ),
     }));
   };
 
-  // Toggle no catch option
-  const toggleNoCatch = () => {
-    setFormData(prev => ({
+  const toggleNoCatch = (checked: boolean) => {
+    setFormData((prev) => ({
       ...prev,
-      noCatch: !prev.noCatch,
-      catches: prev.noCatch ? [{
-        id: `catch_${Date.now()}`,
-        fishGroup: 'reef fish',
-        quantity: 0,
-        photos: [],
-        gps_photo: []
-      }] : []
+      noCatch: checked,
+      catches: !checked
+        ? [
+            {
+              id: `catch_${Date.now()}`,
+              fishGroup: 'reef fish',
+              quantity: 0,
+              photos: [],
+              gps_photo: [],
+            },
+          ]
+        : [],
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Prevent duplicate submissions
-    if (submissionInProgress) {
-      console.log('🚫 Submission already in progress, ignoring duplicate');
-      return;
-    }
 
-    // Validate user has an identifier
+    if (submissionInProgress) return;
+
     const hasIdentifier = currentUser?.imeis?.[0] || currentUser?.username;
     if (!hasIdentifier) {
       setError(t('catch.errorNoImei'));
       return;
     }
 
-    // Validate form data
     if (!formData.noCatch) {
-      const validCatches = formData.catches.filter(catchEntry => catchEntry.quantity > 0);
+      const validCatches = formData.catches.filter((catchEntry) => catchEntry.quantity > 0);
       if (validCatches.length === 0) {
         setError(t('catch.errorNoValidCatches'));
         return;
@@ -200,21 +223,20 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
     setSubmissionInProgress(true);
     setLoading(true);
     setError(null);
-    setOptimizationWarning([]);
 
     try {
-      // Optimize payload before submission
-      const optimizedPayloads = PayloadOptimizer.optimizePayload(formData);
-      const suggestions = PayloadOptimizer.getOptimizationSuggestions(formData);
-      
-      if (suggestions.length > 0) {
-        setOptimizationWarning(suggestions);
-      }
+      const outcome = await catchOutbox.enqueue({
+        ...formData,
+        imei: currentUser?.imeis?.[0] || null,
+        username: currentUser?.username || null,
+      });
 
-      
-      // Always use the upload manager for consistency
-      // This ensures a single, robust submission path
-      await handleOptimizedOfflineSubmission(optimizedPayloads);
+      setIsOfflineMode(outcome.queuedOffline);
+      setSuccess(true);
+
+      setTimeout(() => {
+        onSuccess();
+      }, 3000);
     } catch (err) {
       console.error('Error submitting catch report:', err);
       setError(err instanceof Error ? err.message : t('catch.errorSubmitting'));
@@ -224,326 +246,274 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
     }
   };
 
-  const handleOptimizedOfflineSubmission = async (optimizedPayloads: MultipleCatchFormData[]) => {
-    try {
-      const uploadIds: string[] = [];
-
-      // Add each optimized payload to upload queue
-      for (const payload of optimizedPayloads) {
-        const id = await uploadManager.addUpload({
-          ...payload,
-          // Store imei and username separately based on user type
-          imei: currentUser?.imeis?.[0] || null,
-          username: currentUser?.username || null
-          // Let uploadManager handle offline storage creation
-        }, 1); // High priority
-
-        uploadIds.push(id);
-      }
-
-      // Track upload IDs for monitoring
-      
-      // Check if we're truly offline or just had a network failure
-      const isOnline = navigator.onLine;
-      if (isOnline) {
-        // We're online but submission failed (probably 413 error)
-        // The upload manager will retry automatically
-        setIsOfflineMode(false); // Don't show offline message
-        setSuccess(true);
-      } else {
-        // We're truly offline
-        setIsOfflineMode(true);
-        setSuccess(true);
-      }
-      
-      // Show success message indicating queued submission
-      setTimeout(() => {
-        onSuccess();
-      }, 3000); // Slightly longer to show the queued message
-    } catch (queueError) {
-      throw new Error(`Failed to queue submission: ${queueError instanceof Error ? queueError.message : 'Unknown error'}`);
-    }
-  };
-
-
   if (success) {
     return (
-      <ModalShell onClose={onClose} dismissible={false}>
-            <div className="modal-body text-center p-4">
-              <div className={`mb-3 ${isOfflineMode ? 'text-warning' : 'text-success'}`}>
-                {isOfflineMode ? (
-                  <IconCloudUpload size={48} />
-                ) : (
-                  <IconCheck size={48} />
-                )}
+      <Dialog open disablePointerDismissal>
+        <DialogContent showCloseButton={false} className="sm:max-w-md">
+          <DialogHeader className="items-center py-6 text-center">
+            {isOfflineMode ? (
+              <CloudUploadIcon className="mb-2 size-12 text-muted-foreground" />
+            ) : (
+              <CheckCircle2Icon className="mb-2 size-12 text-primary" />
+            )}
+            <DialogTitle className={isOfflineMode ? 'text-foreground' : 'text-primary'}>
+              {isOfflineMode ? t('catch.reportQueued') : t('catch.reportSubmitted')}
+            </DialogTitle>
+            <DialogDescription>
+              {isOfflineMode
+                ? t('catch.reportQueuedMessage')
+                : t('catch.reportSubmittedMessage')}
+            </DialogDescription>
+            {isOfflineMode && (
+              <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <span>{t('catch.offlineIndicator')}</span>
+                <span>{t('catch.willRetryWhenOnline')}</span>
               </div>
-              <h3 className={isOfflineMode ? 'text-warning' : 'text-success'}>
-                {isOfflineMode ? t('catch.reportQueued') : t('catch.reportSubmitted')}
-              </h3>
-              <p className="text-muted">
-                {isOfflineMode ? 
-                  t('catch.reportQueuedMessage') : 
-                  t('catch.reportSubmittedMessage')
-                }
-              </p>
-              {isOfflineMode && (
-                <div className="mt-3">
-                  <small className="text-muted d-flex align-items-center justify-content-center gap-2">
-                    <span>{t('catch.offlineIndicator')}</span>
-                    <span>{t('catch.willRetryWhenOnline')}</span>
-                  </small>
-                </div>
-              )}
-            </div>
-      </ModalShell>
+            )}
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     );
   }
 
   return (
-    <ModalShell
-      onClose={onClose}
-      dialogClassName="modal-dialog-scrollable modal-xl modal-fullscreen-md-down"
-      dismissible={false}
-    >
-          <div className="modal-header p-3 p-lg-4">
-            <h3 className="modal-title">
-              <IconFish className="me-2" size={24} />
-              <span className="d-none d-sm-inline">{t('catch.reportCatch')}</span>
-              <span className="d-sm-none">{t('catch.reportCatchButton')}</span>
-            </h3>
-            <button
-              type="button"
-              className="btn-close"
-              onClick={onClose}
-              disabled={loading}
-              style={{ minWidth: '44px', minHeight: '44px' }}
-            ></button>
-          </div>
+    <Dialog open disablePointerDismissal>
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[95vh] flex-col sm:max-w-5xl"
+      >
+        <DialogHeader className="flex-row items-center justify-between border-b pb-3">
+          <DialogTitle className="flex items-center gap-2">
+            <FishIcon className="size-5 text-primary" />
+            <span className="hidden sm:inline">{t('catch.reportCatch')}</span>
+            <span className="sm:hidden">{t('catch.reportCatchButton')}</span>
+          </DialogTitle>
+          <DialogDescription className="sr-only">{t('catch.reportCatch')}</DialogDescription>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            disabled={loading}
+            aria-label={t('common.close')}
+          >
+            <XIcon />
+          </Button>
+        </DialogHeader>
 
-          <div className="modal-body p-3 p-lg-4">
-            {/* Network Status */}
-            <NetworkStatus compact={false} showDetails={true} />
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-2 pr-1">
+          <NetworkStatus compact={false} showDetails={true} />
 
-            {/* Trip Information or Direct Catch Date Selection */}
-            {isDirectCatch ? (
-              <DateSelector 
-                selectedDate={formData.date}
-                onDateSelection={handleDateSelection}
-              />
-            ) : (
-              <div className="mb-3 mb-lg-4">
-                <div className="d-flex align-items-center text-muted small">
-                  <IconCalendar size={16} className="me-2" />
-                  <span>{formatTripDate(trip.endTime, t)}</span>
-                  <span className="mx-2">•</span>
-                  <span>{t('catch.tripIdLabel')} {trip.id.slice(0, 8)}...</span>
-                </div>
-              </div>
-            )}
+          {isDirectCatch ? (
+            <DateSelector
+              selectedDate={formData.date}
+              onDateSelection={handleDateSelection}
+            />
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CalendarIcon className="size-4" />
+              <span>{formatTripDate(trip.endTime, t)}</span>
+              <span>•</span>
+              <span>
+                {t('catch.tripIdLabel')} {trip.id.slice(0, 8)}...
+              </span>
+            </div>
+          )}
 
-            {error && (
-              <div className="alert alert-danger mb-4">
-                <div className="d-flex">
-                  <div>
-                    <IconAlertTriangle className="me-2" />
-                  </div>
-                  <div>{error}</div>
-                </div>
-              </div>
-            )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangleIcon />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-            {optimizationWarning.length > 0 && (
-              <div className="alert alert-info mb-4">
-                <div className="d-flex">
-                  <div>
-                    <IconAlertTriangle className="me-2" />
-                  </div>
-                  <div>
-                    <strong>{t('catch.photoOptimization')}</strong>
-                    <ul className="mb-0 mt-1">
-                      {optimizationWarning.map((warning, index) => (
-                        <li key={index}>{warning}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <div className="row g-3">
-                {/* Left Column - Catch Options */}
-                <div className="col-12 col-lg-8">
-                  {/* No Catch Option */}
-                  <div className="card mb-3 mb-lg-4">
-                    <div className="card-body p-3 p-lg-4">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <div className="flex-grow-1">
-                          <label htmlFor="noCatchToggle" className="d-flex align-items-center mb-2 fw-bold" style={{ cursor: 'pointer' }}>
-                            <IconBan className="me-2" size={20} />
-                            {t('catch.noCatch')}
-                          </label>
-                          <p className="text-muted mb-0 small">{t('catch.reportNoCatchDescription')}</p>
-                        </div>
-                        <div className="form-check form-switch mb-0">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id="noCatchToggle"
-                            checked={formData.noCatch}
-                            onChange={toggleNoCatch}
-                            disabled={loading}
-                            style={{ minWidth: '52px', minHeight: '28px' }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="card mb-3 mb-lg-4">
-                    <div className="card-body p-3 p-lg-4">
-                      <label htmlFor="fuelLiters" className="d-flex align-items-center mb-2 fw-bold">
-                        <IconGasStation className="me-2" size={20} />
-                        {t('catch.fuelUsed')}
-                      </label>
-                      <p className="text-muted mb-2 small">{t('catch.fuelUsedDescription')}</p>
-                      <input
-                        id="fuelLiters"
-                        type="number"
-                        inputMode="decimal"
-                        className="form-control"
-                        value={formData.fuel_liters ?? ''}
-                        onChange={(e) => {
-                          const liters = parseFloat(e.target.value);
-                          setFormData(prev => ({ ...prev, fuel_liters: liters >= 0 ? liters : undefined }));
-                        }}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="0.0"
-                        min="0"
-                        step="0.01"
-                        disabled={loading}
-                        style={{ minHeight: '50px', fontSize: '16px', padding: '12px 16px' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* GPS Location Option for Direct Catch Reports */}
-                  {isDirectCatch && !formData.noCatch && (
-                    <div className="card mb-3 mb-lg-4">
-                      <div className="card-body p-3 p-lg-4">
-                        <div className="d-flex align-items-center justify-content-between">
-                          <div className="flex-grow-1">
-                            <label htmlFor="gpsLocationToggle" className="d-flex align-items-center mb-2 fw-bold" style={{ cursor: 'pointer' }}>
-                              <span className="me-2">📍</span>
-                              {t('catch.photoLocationQuestion')}
-                            </label>
-                            <p className="text-muted mb-0 small">{t('catch.photoLocationDescription')}</p>
-                          </div>
-                          <div className="form-check form-switch mb-0">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="gpsLocationToggle"
-                              checked={gpsLocationEnabled}
-                              onChange={(e) => setGpsLocationEnabled(e.target.checked)}
-                              disabled={loading}
-                              style={{ minWidth: '52px', minHeight: '28px' }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Multiple Catch Entries */}
-                  {!formData.noCatch && (
-                    <div className="card card-borderless shadow-sm border-primary" style={{ borderWidth: '2px' }}>
-                      <div className="card-header bg-primary-lt">
-                        <h3 className="card-title d-flex align-items-center text">
-                          <IconFish className="me-2" size={20} />
-                          <span className="d-none d-sm-inline">{t('catch.catchDetails')}</span>
-                          <span className="d-sm-none">{t('catch.catches')}</span>
-                        </h3>
-                        <div className="card-actions">
-                          <button
-                            type="button"
-                            className="btn btn-primary d-flex align-items-center"
-                            onClick={addCatchEntry}
-                            disabled={loading || formData.catches.length >= 5}
-                            style={{ minHeight: '44px', fontSize: '15px' }}
+          <form id="report-catch-form" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              {/* Left Column - Catch Options */}
+              <div className="flex flex-col gap-4 lg:col-span-8">
+                {/* No Catch Option */}
+                <Card size="sm">
+                  <CardContent>
+                    <FieldGroup>
+                      <Field orientation="horizontal">
+                        <FieldContent>
+                          <FieldLabel
+                            htmlFor="noCatchToggle"
+                            className="cursor-pointer font-semibold"
                           >
-                            <IconPlus size={18} className="me-2" />
-                            <span className="d-none d-sm-inline">{t('catch.addFishGroup')}</span>
-                            <span className="d-sm-none">{t('catch.addCatch')}</span>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="card-body p-3 p-lg-4">
-                        {formData.catches.map((catchEntry, index) => (
-                          <CatchEntryForm
-                            key={catchEntry.id}
-                            catchEntry={catchEntry}
-                            index={index}
-                            totalCatches={formData.catches.length}
-                            loading={loading}
-                            isDarkMode={isDarkMode}
-                            isDirectCatch={isDirectCatch}
-                            fileInputRefs={photoHandling.fileInputRefs}
-                            onUpdate={updateCatchEntry}
-                            onRemove={removeCatchEntry}
-                            onFileUpload={photoHandling.handleFileUpload}
-                            onTriggerFileInput={photoHandling.triggerFileInput}
-                            onRemovePhoto={photoHandling.removePhoto}
+                            <BanIcon className="size-4 text-muted-foreground" />
+                            {t('catch.noCatch')}
+                          </FieldLabel>
+                          <FieldDescription className="text-xs">
+                            {t('catch.reportNoCatchDescription')}
+                          </FieldDescription>
+                        </FieldContent>
+                        <Switch
+                          id="noCatchToggle"
+                          checked={formData.noCatch}
+                          onCheckedChange={toggleNoCatch}
+                          disabled={loading}
+                        />
+                      </Field>
+                    </FieldGroup>
+                  </CardContent>
+                </Card>
+
+                {/* Fuel Used */}
+                <Card size="sm">
+                  <CardContent>
+                    <FieldGroup>
+                      <Field>
+                        <FieldLabel htmlFor="fuelLiters" className="font-semibold">
+                          <FuelIcon className="size-4 text-primary" />
+                          {t('catch.fuelUsed')}
+                        </FieldLabel>
+                        <FieldDescription className="text-xs">
+                          {t('catch.fuelUsedDescription')}
+                        </FieldDescription>
+                        <Input
+                          id="fuelLiters"
+                          type="number"
+                          inputMode="decimal"
+                          className="h-11 text-base"
+                          value={formData.fuel_liters ?? ''}
+                          onChange={(e) => {
+                            const liters = parseFloat(e.target.value);
+                            setFormData((prev) => ({
+                              ...prev,
+                              fuel_liters: liters >= 0 ? liters : undefined,
+                            }));
+                          }}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          placeholder="0.0"
+                          min="0"
+                          step="0.01"
+                          disabled={loading}
+                        />
+                      </Field>
+                    </FieldGroup>
+                  </CardContent>
+                </Card>
+
+                {/* GPS Location Option for Direct Catch Reports */}
+                {isDirectCatch && !formData.noCatch && (
+                  <Card size="sm">
+                    <CardContent>
+                      <FieldGroup>
+                        <Field orientation="horizontal">
+                          <FieldContent>
+                            <FieldLabel
+                              htmlFor="gpsLocationToggle"
+                              className="cursor-pointer font-semibold"
+                            >
+                              <MapPinIcon className="size-4 text-primary" />
+                              {t('catch.photoLocationQuestion')}
+                            </FieldLabel>
+                            <FieldDescription className="text-xs">
+                              {t('catch.photoLocationDescription')}
+                            </FieldDescription>
+                          </FieldContent>
+                          <Switch
+                            id="gpsLocationToggle"
+                            checked={gpsLocationEnabled}
+                            onCheckedChange={setGpsLocationEnabled}
+                            disabled={loading}
                           />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                        </Field>
+                      </FieldGroup>
+                    </CardContent>
+                  </Card>
+                )}
 
-                {/* Right Column - Summary and Upload Progress */}
-                <div className="col-12 col-lg-4">
-                  <CatchSummary
-                    noCatch={formData.noCatch}
-                    catches={formData.catches}
-                    isDarkMode={isDarkMode}
-                  />
-                </div>
+                {/* Multiple Catch Entries */}
+                {!formData.noCatch && (
+                  <Card className="ring-primary/40">
+                    <CardHeader className="items-center border-b bg-primary/5 py-3">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <FishIcon className="size-4 text-primary" />
+                        <span className="hidden sm:inline">{t('catch.catchDetails')}</span>
+                        <span className="sm:hidden">{t('catch.catches')}</span>
+                      </CardTitle>
+                      <CardAction>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={addCatchEntry}
+                          disabled={loading || formData.catches.length >= 5}
+                        >
+                          <PlusIcon data-icon="inline-start" />
+                          <span className="hidden sm:inline">{t('catch.addFishGroup')}</span>
+                          <span className="sm:hidden">{t('catch.addCatch')}</span>
+                        </Button>
+                      </CardAction>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4 pt-2">
+                      {formData.catches.map((catchEntry, index) => (
+                        <CatchEntryForm
+                          key={catchEntry.id}
+                          catchEntry={catchEntry}
+                          index={index}
+                          totalCatches={formData.catches.length}
+                          loading={loading}
+                          isDirectCatch={isDirectCatch}
+                          fileInputRefs={photoHandling.fileInputRefs}
+                          onUpdate={updateCatchEntry}
+                          onRemove={removeCatchEntry}
+                          onFileUpload={photoHandling.handleFileUpload}
+                          onTriggerFileInput={photoHandling.triggerFileInput}
+                          onRemovePhoto={photoHandling.removePhoto}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            </form>
-          </div>
 
-          <div className="modal-footer p-3 d-flex gap-2">
-            <button
-              type="button"
-              className="btn btn-secondary flex-fill"
-              onClick={onClose}
-              disabled={loading}
-              style={{ minHeight: '48px', fontSize: '16px' }}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary flex-fill"
-              onClick={handleSubmit}
-              disabled={loading || submissionInProgress || (!formData.noCatch && formData.catches.filter(c => c.quantity > 0).length === 0)}
-              style={{ minHeight: '48px', fontSize: '16px' }}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                  {t('common.loading')}...
-                </>
-              ) : (
-                <>
-                  <IconCheck className="me-2" size={18} />
-                  {formData.noCatch ? t('catch.reportNoCatch') : t('catch.submitReport')}
-                </>
-              )}
-            </button>
-          </div>
-    </ModalShell>
+              {/* Right Column - Summary */}
+              <div className="lg:col-span-4">
+                <CatchSummary noCatch={formData.noCatch} catches={formData.catches} />
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <DialogFooter className="flex-row gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="h-11 flex-1"
+            onClick={onClose}
+            disabled={loading}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="submit"
+            form="report-catch-form"
+            size="lg"
+            className="h-11 flex-1"
+            disabled={
+              loading ||
+              submissionInProgress ||
+              (!formData.noCatch && formData.catches.filter((c) => c.quantity > 0).length === 0)
+            }
+          >
+            {loading ? (
+              <>
+                <Spinner data-icon="inline-start" />
+                {t('common.loading')}...
+              </>
+            ) : (
+              <>
+                <CheckIcon data-icon="inline-start" />
+                {formData.noCatch ? t('catch.reportNoCatch') : t('catch.submitReport')}
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

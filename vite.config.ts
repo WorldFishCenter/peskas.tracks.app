@@ -1,12 +1,23 @@
+import fs from 'fs'
+import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 
+const { version: appVersion } = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, './package.json'), 'utf8')
+) as { version: string }
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     react(),
+    tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       // Disable minification to avoid terser renderChunk failures during build
@@ -19,8 +30,8 @@ export default defineConfig({
         name: 'Peskas Tracks',
         short_name: 'Tracks',
         description: 'Track and monitor fishing vessel activities',
-        // The colour of the app's top bar (white in Tabler's light theme, the default), so an installed
-        // app's status bar matches it; the splash colour is the Peskas navy, as in the Android and iOS apps.
+        // Matches the light-theme top bar so an installed app's status bar blends in;
+        // the splash colour is the Peskas navy, as in the Android and iOS apps.
         theme_color: '#ffffff',
         background_color: '#0b2233',
         icons: [
@@ -90,6 +101,11 @@ export default defineConfig({
       telemetry: false
     })] : [])
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src')
+    }
+  },
   // No /api proxy: `vercel dev` serves the functions in api/ on the same
   // origin as the frontend, exactly as production does. Running `vite`
   // directly (npm run dev:frontend) therefore has no backend — use that only

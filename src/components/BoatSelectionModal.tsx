@@ -1,12 +1,50 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ChevronsUpDownIcon,
+  SearchIcon,
+  SearchXIcon,
+  XIcon,
+} from 'lucide-react';
 import { getAllUsers, MongoUser } from '../api/authService';
 import {
   fetchFleetTripActivity,
   FleetTripActivity,
-  TRIP_ACTIVITY_DAYS
+  TRIP_ACTIVITY_DAYS,
 } from '../api/pelagicDataService';
 import { formatTripDate } from '../utils/formatters';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface BoatSelectionModalProps {
   onSelect: (imei: string) => void;
@@ -15,18 +53,6 @@ interface BoatSelectionModalProps {
 
 type SortField = 'Boat' | 'IMEI' | 'captain' | 'vessel_type' | 'Community' | 'Region' | 'Country' | 'trips';
 type SortDir = 'asc' | 'desc';
-
-const getCountryColor = (country: string | undefined): string => {
-  const countryColors: Record<string, string> = {
-    'Kenya': 'bg-success-subtle text-success',
-    'Tanzania': 'bg-info-subtle text-info',
-    'Mozambique': 'bg-warning-subtle text-warning',
-    'Zanzibar': 'bg-primary-subtle text-primary',
-    'Egypt': 'bg-danger-subtle text-danger',
-    'Malawi': 'bg-secondary-subtle text-secondary',
-  };
-  return countryColors[country || ''] || 'bg-light-subtle text-muted';
-};
 
 const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClose }) => {
   const { t } = useTranslation();
@@ -38,9 +64,7 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
   const [tripActivity, setTripActivity] = useState<FleetTripActivity | null>(null);
   const [tripActivityFailed, setTripActivityFailed] = useState(false);
 
-  // Trip counts take a few seconds to come back for the whole fleet, so they
-  // load alongside the vessel list and fill in when ready rather than holding
-  // the table back.
+  // Trip counts take a few seconds for the whole fleet, so load alongside the vessel list.
   useEffect(() => {
     const loadTripActivity = async () => {
       try {
@@ -72,8 +96,9 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
     const q = search.toLowerCase();
     const filtered = q
       ? boats.filter((b) =>
-          [b.Boat, b.IMEI, b.captain, b.vessel_type, b.Community, b.Region, b.Country]
-            .some((v) => (v ?? '').toLowerCase().includes(q))
+          [b.Boat, b.IMEI, b.captain, b.vessel_type, b.Community, b.Region, b.Country].some((v) =>
+            (v ?? '').toLowerCase().includes(q)
+          )
         )
       : boats;
 
@@ -83,8 +108,9 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
         const at = tripActivity?.[a.IMEI];
         const bt = tripActivity?.[b.IMEI];
         // Equal counts fall back to whichever vessel was at sea more recently.
-        cmp = ((at?.trips ?? 0) - (bt?.trips ?? 0))
-          || (Date.parse(at?.lastTripEnd ?? '') || 0) - (Date.parse(bt?.lastTripEnd ?? '') || 0);
+        cmp =
+          (at?.trips ?? 0) - (bt?.trips ?? 0) ||
+          (Date.parse(at?.lastTripEnd ?? '') || 0) - (Date.parse(bt?.lastTripEnd ?? '') || 0);
       } else {
         const av = (a[sortField] ?? '').toLowerCase();
         const bv = (b[sortField] ?? '').toLowerCase();
@@ -109,11 +135,13 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
     }
   };
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <i className="ti ti-selector text-muted ms-1" />;
-    return sortDir === 'asc'
-      ? <i className="ti ti-chevron-up ms-1" />
-      : <i className="ti ti-chevron-down ms-1" />;
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ChevronsUpDownIcon className="size-3.5 text-muted-foreground" />;
+    return sortDir === 'asc' ? (
+      <ChevronUpIcon className="size-3.5" />
+    ) : (
+      <ChevronDownIcon className="size-3.5" />
+    );
   };
 
   const columns: { label: string; field: SortField }[] = [
@@ -128,133 +156,126 @@ const BoatSelectionModal: React.FC<BoatSelectionModalProps> = ({ onSelect, onClo
   ];
 
   return (
-    <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h3 className="modal-title">{t('navigation.selectBoat')}</h3>
-            <button type="button" className="btn-close" onClick={onClose}></button>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-5xl">
+        <DialogHeader>
+          <DialogTitle>{t('navigation.selectBoat')}</DialogTitle>
+          <DialogDescription>
+            Showing {filteredAndSorted.length} of {boats.length} vessels
+            {tripActivity && ` · ${activeVesselCount} with trips in the last ${TRIP_ACTIVITY_DAYS} days`}
+            {!tripActivity && !tripActivityFailed && ' · loading trip counts…'}
+            {tripActivityFailed && ' · trip counts unavailable'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Spinner className="size-6 text-primary" />
           </div>
-          <div className="modal-body">
-            {loading ? (
-              <div className="d-flex justify-content-center py-5">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">{t('common.loading')}</span>
-                </div>
-              </div>
-            ) : (
-              <div>
-                {/* Search Input */}
-                <div className="mb-3">
-                  <div className="input-group">
-                    <span className="input-group-text">
-                      <i className="ti ti-search"></i>
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Search vessels..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      autoFocus
-                    />
-                    {search && (
-                      <button className="btn btn-outline-secondary" onClick={() => setSearch('')}>
-                        <i className="ti ti-x"></i>
-                      </button>
-                    )}
-                  </div>
-                </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <InputGroup className="h-9">
+              <InputGroupAddon>
+                <SearchIcon />
+              </InputGroupAddon>
+              <InputGroupInput
+                type="text"
+                placeholder="Search vessels..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoFocus
+              />
+              {search && (
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={t('common.close')}
+                    onClick={() => setSearch('')}
+                  >
+                    <XIcon />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              )}
+            </InputGroup>
 
-                {/* Results count */}
-                <div className="mb-3">
-                  <small className="text-muted">
-                    Showing {filteredAndSorted.length} of {boats.length} vessels
-                    {tripActivity && ` · ${activeVesselCount} with trips in the last ${TRIP_ACTIVITY_DAYS} days`}
-                    {!tripActivity && !tripActivityFailed && ' · loading trip counts…'}
-                    {tripActivityFailed && ' · trip counts unavailable'}
-                  </small>
-                </div>
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+              <Table>
+                <TableHeader className="sticky top-0 bg-muted">
+                  <TableRow>
+                    {columns.map(({ label, field }) => (
+                      <TableHead
+                        key={field}
+                        className="min-w-28 cursor-pointer select-none"
+                        onClick={() => handleSort(field)}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{label}</span>
+                          {renderSortIcon(field)}
+                        </div>
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAndSorted.map((boat) => (
+                    <TableRow
+                      key={boat.IMEI}
+                      className="cursor-pointer"
+                      onClick={() => onSelect(boat.IMEI)}
+                    >
+                      <TableCell className="font-medium">{boat.Boat || 'Unknown'}</TableCell>
+                      <TableCell>
+                        {tripActivity?.[boat.IMEI] ? (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">
+                              {tripActivity[boat.IMEI].trips}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatTripDate(tripActivity[boat.IMEI].lastTripEnd, t)}
+                            </span>
+                          </div>
+                        ) : tripActivity ? (
+                          <span className="text-muted-foreground">0</span>
+                        ) : tripActivityFailed ? (
+                          <span className="text-muted-foreground">-</span>
+                        ) : (
+                          <Skeleton className="h-4 w-16" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs text-muted-foreground">{boat.IMEI}</code>
+                      </TableCell>
+                      <TableCell>{boat.captain || '-'}</TableCell>
+                      <TableCell>{boat.vessel_type || '-'}</TableCell>
+                      <TableCell>{boat.Community || '-'}</TableCell>
+                      <TableCell>{boat.Region || '-'}</TableCell>
+                      <TableCell>
+                        {boat.Country ? (
+                          <Badge variant="outline">{boat.Country}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-                {/* Table */}
-                <div className="table-responsive" style={{ maxHeight: '60vh' }}>
-                  <table className="table table-hover table-striped">
-                    <thead className="table-dark sticky-top">
-                      <tr>
-                        {columns.map(({ label, field }) => (
-                          <th
-                            key={field}
-                            style={{ minWidth: '120px', cursor: 'pointer', userSelect: 'none' }}
-                            onClick={() => handleSort(field)}
-                          >
-                            <div className="d-flex align-items-center justify-content-between">
-                              <span>{label}</span>
-                              <SortIcon field={field} />
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAndSorted.map((boat) => (
-                        <tr
-                          key={boat.IMEI}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => onSelect(boat.IMEI)}
-                        >
-                          <td>{boat.Boat || 'Unknown'}</td>
-                          <td className="text-nowrap">
-                            {tripActivity?.[boat.IMEI] ? (
-                              <>
-                                <span className="badge rounded-pill bg-success-subtle text-success">
-                                  {tripActivity[boat.IMEI].trips}
-                                </span>
-                                <span className="small text-muted ms-2">
-                                  {formatTripDate(tripActivity[boat.IMEI].lastTripEnd, t)}
-                                </span>
-                              </>
-                            ) : tripActivity ? (
-                              <span className="text-muted">0</span>
-                            ) : tripActivityFailed ? (
-                              <span className="text-muted">-</span>
-                            ) : (
-                              <span className="placeholder col-4" />
-                            )}
-                          </td>
-                          <td><code className="text-muted small">{boat.IMEI}</code></td>
-                          <td>{boat.captain || '-'}</td>
-                          <td>{boat.vessel_type || '-'}</td>
-                          <td>{boat.Community || '-'}</td>
-                          <td>{boat.Region || '-'}</td>
-                          <td>
-                            {boat.Country ? (
-                              <span className={`badge rounded-pill ${getCountryColor(boat.Country)}`}>
-                                {boat.Country}
-                              </span>
-                            ) : (
-                              <span className="text-muted">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  {filteredAndSorted.length === 0 && (
-                    <div className="text-center py-5">
-                      <div className="text-muted">
-                        <i className="ti ti-search-off fs-1"></i>
-                        <p className="mt-2">{t('common.noResults')}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+              {filteredAndSorted.length === 0 && (
+                <Empty className="py-10">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <SearchXIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('common.noResults')}</EmptyTitle>
+                  </EmptyHeader>
+                </Empty>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 

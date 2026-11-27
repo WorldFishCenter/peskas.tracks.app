@@ -146,14 +146,14 @@ export function initSentry() {
     // Enable debug mode in development
     debug: isDevelopment,
 
-    // Release tracking (set by build process)
-    release: import.meta.env.VITE_SENTRY_RELEASE || undefined,
+    // Release tracking (falls back to package.json version when env override is unset)
+    release: import.meta.env.VITE_SENTRY_RELEASE || `tracks-explorer@${__APP_VERSION__}`,
   });
 
   // Set global context
   Sentry.setContext('app', {
     name: 'tracks-explorer',
-    version: import.meta.env.VITE_APP_VERSION || 'unknown',
+    version: import.meta.env.VITE_APP_VERSION || __APP_VERSION__,
     build_time: import.meta.env.VITE_BUILD_TIME || 'unknown',
   } as Record<string, unknown>);
 

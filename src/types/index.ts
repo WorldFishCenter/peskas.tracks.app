@@ -85,8 +85,8 @@ export interface VesselDetails {
 
 export interface MapProps {
   onSelectVessel?: (vessel: LiveLocation | null) => void;
-  dateFrom?: Date;
-  dateTo?: Date;
+  tripPoints?: TripPoint[];
+  tripById?: Record<string, TripPoint[]>;
   selectedTripId?: string;
   liveLocations?: LiveLocation[];
   centerOnLiveLocations?: boolean;

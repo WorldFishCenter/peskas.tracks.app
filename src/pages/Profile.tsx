@@ -1,18 +1,62 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import { useTranslation } from 'react-i18next';
-import { IconLock, IconCheck, IconAlertTriangle, IconCalendar, IconChartBar, IconPhone } from '@tabler/icons-react';
+import {
+  AlertTriangleIcon,
+  BarChart3Icon,
+  CalendarIcon,
+  CheckIcon,
+  InfoIcon,
+  LockIcon,
+  MapIcon,
+  PhoneIcon,
+  SettingsIcon,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { isDemoMode } from '../utils/demoData';
 import { apiFetch } from '../api/httpClient';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 
 const Profile: React.FC = () => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const isDemo = isDemoMode();
 
-  // Edit mode state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
@@ -38,7 +82,6 @@ const Profile: React.FC = () => {
   const [totalCatchReports, setTotalCatchReports] = useState<number>(0);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // Predefined lists (same as RegistrationModal)
   const countries = ['Tanzania', 'Zanzibar', 'Mozambique', 'Kenya'];
   const vesselTypes = [
     { value: 'Motorized Boat', labelKey: 'auth.registration.vesselOptions.motorizedBoat' },
@@ -51,7 +94,7 @@ const Profile: React.FC = () => {
     { value: 'Flat Boat', labelKey: 'auth.registration.vesselOptions.flatBoat' },
     { value: 'Surf Board', labelKey: 'auth.registration.vesselOptions.surfBoard' },
     { value: 'Other', labelKey: 'auth.registration.vesselOptions.other' },
-    { value: 'Feet', labelKey: 'auth.registration.vesselOptions.feet' }
+    { value: 'Feet', labelKey: 'auth.registration.vesselOptions.feet' },
   ];
   const gearTypes = [
     { value: 'Nets', labelKey: 'auth.registration.gearOptions.nets' },
@@ -59,7 +102,20 @@ const Profile: React.FC = () => {
     { value: 'Traps', labelKey: 'auth.registration.gearOptions.traps' },
     { value: 'Spears & Harpoons', labelKey: 'auth.registration.gearOptions.spearsAndHarpoons' },
     { value: 'Gleaning', labelKey: 'auth.registration.gearOptions.gleaning' },
-    { value: 'Other', labelKey: 'auth.registration.gearOptions.other' }
+    { value: 'Other', labelKey: 'auth.registration.gearOptions.other' },
+  ];
+
+  const countryItems = [
+    { value: null, label: t('auth.registration.selectCountry') },
+    ...countries.map((c) => ({ value: c, label: c })),
+  ];
+  const vesselItems = [
+    { value: null, label: t('auth.registration.selectVesselType') },
+    ...vesselTypes.map(({ value, labelKey }) => ({ value, label: t(labelKey) })),
+  ];
+  const gearItems = [
+    { value: null, label: t('auth.registration.selectGearType') },
+    ...gearTypes.map(({ value, labelKey }) => ({ value, label: t(labelKey) })),
   ];
 
   const getVesselLabel = (value: string) => {
@@ -77,8 +133,6 @@ const Profile: React.FC = () => {
     const loadUserProfile = async () => {
       if (!currentUser) return;
 
-      // Skip profile loading for admin users - they don't have profiles.
-      // Nor does the demo account: it exists in no database.
       if (currentUser.role === 'admin' || isDemo) {
         setLoading(false);
         return;
@@ -94,7 +148,6 @@ const Profile: React.FC = () => {
 
         const userData = await response.json();
 
-        // Set form fields from user data
         setPhoneNumber(userData.phoneNumber || '');
         setCountry(userData.Country || '');
         setVesselType(userData.vessel_type || '');
@@ -115,7 +168,6 @@ const Profile: React.FC = () => {
   // Load user statistics
   useEffect(() => {
     const loadUserStats = async () => {
-      // The demo's catch reports are simulated and never stored.
       if (!currentUser || isDemo) return;
 
       try {
@@ -145,13 +197,34 @@ const Profile: React.FC = () => {
     setError(null);
     setSuccess(null);
 
+    if (!phoneNumber.trim()) {
+      setError(t('auth.registration.phoneNumberRequired'));
+      return;
+    }
+    if (!country) {
+      setError(t('auth.registration.countryRequired'));
+      return;
+    }
+    if (!vesselType) {
+      setError(t('auth.registration.vesselTypeRequired'));
+      return;
+    }
+    if (isBoatNameRequired && !boatName.trim()) {
+      setError(t('auth.registration.boatNameRequired'));
+      return;
+    }
+    if (!mainGearType) {
+      setError(t('auth.registration.gearTypeRequired'));
+      return;
+    }
+
     try {
       setLoading(true);
 
       const response = await apiFetch(`/users/${currentUser?.id}`, {
         method: 'PUT',
         body: {
-          phoneNumber: phoneNumber,
+          phoneNumber,
           Country: country,
           vessel_type: vesselType,
           main_gear_type: mainGearType,
@@ -167,7 +240,6 @@ const Profile: React.FC = () => {
       setSuccess(t('profile.profileUpdated'));
       setIsEditingProfile(false);
 
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Error updating profile:', err);
@@ -182,7 +254,6 @@ const Profile: React.FC = () => {
     setError(null);
     setSuccess(null);
 
-    // Validation
     if (newPassword.length < 6) {
       setError(t('profile.passwordTooShort'));
       return;
@@ -215,7 +286,6 @@ const Profile: React.FC = () => {
       setNewPassword('');
       setConfirmNewPassword('');
 
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Error changing password:', err);
@@ -238,19 +308,15 @@ const Profile: React.FC = () => {
     setError(null);
   };
 
-  // Calculate member since date
   const getMemberSinceDate = () => {
-    if (!createdAt) {
-      return '-';
-    }
+    if (!createdAt) return '-';
     return format(createdAt, 'MMMM dd, yyyy');
   };
 
-  // Create the page header
   const pageHeader = (
-    <div className="page-header d-print-none">
-      <div className="container-xl">
-        <h2 className="page-title">{t('profile.title')}</h2>
+    <div className="border-b bg-background print:hidden">
+      <div className="mx-auto max-w-7xl px-4 py-4">
+        <h2 className="text-xl font-semibold tracking-tight">{t('profile.title')}</h2>
       </div>
     </div>
   );
@@ -261,432 +327,424 @@ const Profile: React.FC = () => {
     <MainLayout pageHeader={pageHeader}>
       {/* Admin Mode - No Profile */}
       {currentUser?.role === 'admin' && (
-        <div className="row justify-content-center">
-          <div className="col-lg-8">
-            <div className="card card-lg">
-              <div className="card-body text-center py-5">
-                <div className="empty-icon mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="icon icon-lg text-primary" width="48" height="48" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                    <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />
-                    <path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />
-                  </svg>
-                </div>
-                <h2 className="mb-3">{t('profile.adminMode')}</h2>
-                <p className="text-secondary mb-4">
-                  {t('profile.adminModeDesc')}
-                </p>
-                <div className="alert alert-info text-start mb-4">
-                  <div className="d-flex">
-                    <div className="me-3">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                        <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
-                        <path d="M12 9h.01" />
-                        <path d="M11 12h1v4h1" />
-                      </svg>
-                    </div>
-                    <div>
-                      <strong>{t('profile.adminCapabilities')}</strong>
-                      <ul className="mb-0 mt-2">
-                        <li>{t('profile.adminCap1')}</li>
-                        <li>{t('profile.adminCap2')}</li>
-                        <li>{t('profile.adminCap3')}</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-                <a href="/" className="btn btn-primary">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="icon me-2" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                    <path d="M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13" />
-                    <path d="M9 4v13" />
-                    <path d="M15 7v13" />
-                  </svg>
-                  {t('profile.goToDashboard')}
-                </a>
+        <div className="mx-auto max-w-2xl">
+          <Card>
+            <CardHeader className="items-center text-center">
+              <div className="mb-2 flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <SettingsIcon className="size-7" />
               </div>
-            </div>
-          </div>
+              <CardTitle className="text-xl">{t('profile.adminMode')}</CardTitle>
+              <CardDescription>{t('profile.adminModeDesc')}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              <Alert className="text-left">
+                <InfoIcon />
+                <AlertTitle>{t('profile.adminCapabilities')}</AlertTitle>
+                <AlertDescription>
+                  <ul className="mt-1 flex list-disc flex-col gap-1 pl-4">
+                    <li>{t('profile.adminCap1')}</li>
+                    <li>{t('profile.adminCap2')}</li>
+                    <li>{t('profile.adminCap3')}</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+            <CardFooter className="justify-center">
+              <Button render={<Link to="/" />} nativeButton={false}>
+                <MapIcon data-icon="inline-start" />
+                {t('profile.goToDashboard')}
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       )}
 
       {/* Regular User Profile */}
       {currentUser?.role !== 'admin' && (
-        <>
-          {/* Demo Mode Banner
-          {isDemo && (
-            <div className="alert alert-warning" role="alert">
-              <div className="d-flex align-items-center">
-                <IconAlertTriangle className="me-2" />
-                <div>
-                  <strong>Demo Mode:</strong> All personal information shown below is anonymized for privacy.
-                  Profile editing is disabled in demo mode.
-                </div>
-              </div>
-            </div>
-          )} */}
+        <div className="flex flex-col gap-4">
+          {success && (
+            <Alert>
+              <CheckIcon className="text-primary" />
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
 
-          {/* Success/Error Alerts */}
-      {success && (
-        <div className="alert alert-success" role="alert">
-          <div className="d-flex">
-            <div>
-              <IconCheck className="me-2" />
-            </div>
-            <div>{success}</div>
-          </div>
-        </div>
-      )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangleIcon />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-      {error && (
-        <div className="alert alert-danger" role="alert">
-          <div className="d-flex">
-            <div>
-              <IconAlertTriangle className="me-2" />
-            </div>
-            <div>{error}</div>
-          </div>
-        </div>
-      )}
-
-      <div className="row row-cards">
-        {/* Account Overview Card */}
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">{t('profile.accountInfo')}</h3>
-            </div>
-            <div className="card-body">
-              <div className="d-flex align-items-center mb-3">
-                <span className="avatar avatar-md me-3">{currentUser?.name?.charAt(0).toUpperCase()}</span>
-                <div>
-                  <div className="fw-bold">
-                    {isDemo ? 'Demo User' : (currentUser?.username || currentUser?.name || '-')}
-                  </div>
-                  <div className="text-muted">{t('profile.username')}</div>
-                </div>
-              </div>
-              {phoneNumber && (
-                <div className="mb-3">
-                  <div className="text-muted mb-2">{t('profile.phoneNumber')}</div>
-                  <div className="d-flex align-items-center">
-                    <IconPhone size={16} className="me-1" />
-                    <span>{isDemo ? '+255 *** *** ***' : phoneNumber}</span>
-                  </div>
-                </div>
-              )}
-              <div className="mb-3">
-                <div className="text-muted mb-2">{t('profile.accountType')}</div>
-                <div>
-                  {(currentUser?.hasImei === true || (currentUser?.hasImei !== false && (currentUser?.imeis?.length ?? 0) > 0)) ? (
-                    <span className="badge bg-primary-lt">{t('profile.pdsUser')}</span>
-                  ) : (
-                    <span className="badge bg-info-lt">{t('profile.nonPdsUser')}</span>
-                  )}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted mb-2">{t('profile.memberSince')}</div>
-                <div className="d-flex align-items-center">
-                  <IconCalendar size={16} className="me-1" />
-                  <span>{getMemberSinceDate()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Statistics Card */}
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">{t('profile.statistics')}</h3>
-            </div>
-            <div className="card-body">
-              {statsLoading ? (
-                <div className="text-center py-3">
-                  <div className="spinner-border spinner-border-sm text-primary" role="status"></div>
-                </div>
-              ) : (
-                <div className="row">
-                  <div className="col">
-                    <div className="subheader">{t('profile.totalCatchReports')}</div>
-                    <div className="h1 mb-0">{totalCatchReports}</div>
-                  </div>
-                  <div className="col-auto">
-                    <IconChartBar size={48} className="text-muted" />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Registration Details Card */}
-        <div className="col-12">
-          <form onSubmit={handleUpdateProfile} className="card">
-            <div className="card-header">
-              <h3 className="card-title">{t('profile.registrationDetails')}</h3>
-              {!isEditingProfile && !isChangingPassword && !isDemo && (
-                <div className="card-actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => setIsEditingProfile(true)}
-                  >
-                    {t('profile.editProfile')}
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="card-body">
-              <div className="row g-3">
-                {/* Phone Number */}
-                <div className="col-md-6">
-                  <label className="form-label required">
-                    {t('profile.phoneNumber')}
-                  </label>
-                  {isEditingProfile ? (
-                    <input
-                      type="tel"
-                      className="form-control"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      disabled={loading}
-                      required
-                      placeholder={t('auth.registration.phoneNumberPlaceholder')}
-                    />
-                  ) : (
-                    <div className="form-control-plaintext">
-                      {isDemo ? '+255 *** *** ***' : (phoneNumber || '-')}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Account Overview Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('profile.accountInfo')}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <Avatar size="lg">
+                    <AvatarFallback>
+                      {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold">
+                      {isDemo ? 'Demo User' : currentUser?.username || currentUser?.name || '-'}
                     </div>
-                  )}
+                    <div className="text-xs text-muted-foreground">{t('profile.username')}</div>
+                  </div>
                 </div>
 
-                {/* Country */}
-                <div className="col-md-6">
-                  <label className="form-label required">
-                    {t('profile.country')}
-                  </label>
-                  {isEditingProfile ? (
-                    <select
-                      className="form-select"
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      disabled={loading}
-                      required
-                    >
-                      <option value="">{t('auth.registration.selectCountry')}</option>
-                      {countries.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="form-control-plaintext">
-                      {isDemo ? 'Demo Country' : (country || '-')}
+                {phoneNumber && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      {t('profile.phoneNumber')}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <PhoneIcon className="size-4 text-muted-foreground" />
+                      <span>{isDemo ? '+255 *** *** ***' : phoneNumber}</span>
                     </div>
-                  )}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('profile.accountType')}
+                  </span>
+                  <div>
+                    {currentUser?.hasImei === true ||
+                    (currentUser?.hasImei !== false && (currentUser?.imeis?.length ?? 0) > 0) ? (
+                      <Badge>{t('profile.pdsUser')}</Badge>
+                    ) : (
+                      <Badge variant="secondary">{t('profile.nonPdsUser')}</Badge>
+                    )}
+                  </div>
                 </div>
 
-                {/* Vessel Type */}
-                <div className="col-md-6">
-                  <label className="form-label required">
-                    {t('profile.vesselType')}
-                  </label>
-                  {isEditingProfile ? (
-                    <select
-                      className="form-select"
-                      value={vesselType}
-                      onChange={(e) => setVesselType(e.target.value)}
-                      disabled={loading}
-                      required
-                    >
-                      <option value="">{t('auth.registration.selectVesselType')}</option>
-                      {vesselTypes.map(({ value, labelKey }) => (
-                        <option key={value} value={value}>{t(labelKey)}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="form-control-plaintext">{vesselType ? getVesselLabel(vesselType) : '-'}</div>
-                  )}
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t('profile.memberSince')}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <CalendarIcon className="size-4 text-muted-foreground" />
+                    <span>{getMemberSinceDate()}</span>
+                  </div>
                 </div>
+              </CardContent>
+            </Card>
 
-                {/* Boat Name */}
-                <div className="col-md-6">
-                  <label className={`form-label ${isBoatNameRequired && isEditingProfile ? 'required' : ''}`}>
-                    {t('profile.boatName')}
-                  </label>
-                  {isEditingProfile ? (
-                    <>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={boatName}
-                        onChange={(e) => setBoatName(e.target.value)}
-                        disabled={loading || !isBoatNameRequired}
-                        required={isBoatNameRequired}
-                        placeholder={
-                          isBoatNameRequired
-                            ? t('auth.registration.boatNamePlaceholder')
-                            : t('profile.noBoatName')
-                        }
+            {/* Statistics Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('profile.statistics')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <div className="flex justify-center py-6">
+                    <Spinner className="size-5 text-primary" />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        {t('profile.totalCatchReports')}
+                      </span>
+                      <span className="text-4xl font-bold tabular-nums">{totalCatchReports}</span>
+                    </div>
+                    <BarChart3Icon className="size-12 text-muted-foreground/60" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Registration Details Card */}
+          <form onSubmit={handleUpdateProfile}>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('profile.registrationDetails')}</CardTitle>
+                {!isEditingProfile && !isChangingPassword && !isDemo && (
+                  <CardAction>
+                    <Button type="button" onClick={() => setIsEditingProfile(true)}>
+                      {t('profile.editProfile')}
+                    </Button>
+                  </CardAction>
+                )}
+              </CardHeader>
+              <CardContent>
+                <FieldGroup className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {/* Phone Number */}
+                  <Field>
+                    <FieldLabel htmlFor="profile-phone">
+                      {t('profile.phoneNumber')} {isEditingProfile ? '*' : ''}
+                    </FieldLabel>
+                    {isEditingProfile ? (
+                      <Input
+                        id="profile-phone"
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        disabled={loading}
+                        required
+                        placeholder={t('auth.registration.phoneNumberPlaceholder')}
                       />
-                      {!isBoatNameRequired && (
-                        <div className="form-hint">{t('auth.registration.boatNameNotRequired')}</div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="form-control-plaintext">
-                      {isDemo ? 'Demo Vessel' : (boatName || t('profile.noBoatName'))}
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="py-1 text-sm">
+                        {isDemo ? '+255 *** *** ***' : phoneNumber || '-'}
+                      </div>
+                    )}
+                  </Field>
 
-                {/* Main Gear Type */}
-                <div className="col-md-6">
-                  <label className="form-label required">
-                    {t('profile.mainGearType')}
-                  </label>
-                  {isEditingProfile ? (
-                    <select
-                      className="form-select"
-                      value={mainGearType}
-                      onChange={(e) => setMainGearType(e.target.value)}
-                      disabled={loading}
-                      required
-                    >
-                      <option value="">{t('auth.registration.selectGearType')}</option>
-                      {gearTypes.map(({ value, labelKey }) => (
-                        <option key={value} value={value}>{t(labelKey)}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="form-control-plaintext">{mainGearType ? getGearLabel(mainGearType) : '-'}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-            {isEditingProfile && (
-              <div className="card-footer text-end">
-                <button
-                  type="button"
-                  className="btn btn-link link-secondary me-2"
-                  onClick={handleCancelEdit}
-                  disabled={loading}
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? t('profile.saving') : t('common.save')}
-                </button>
-              </div>
-            )}
-          </form>
-        </div>
+                  {/* Country */}
+                  <Field>
+                    <FieldLabel>
+                      {t('profile.country')} {isEditingProfile ? '*' : ''}
+                    </FieldLabel>
+                    {isEditingProfile ? (
+                      <Select
+                        items={countryItems}
+                        value={country || null}
+                        onValueChange={(v) => setCountry(v ?? '')}
+                        disabled={loading}
+                        required
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {countries.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="py-1 text-sm">
+                        {isDemo ? 'Demo Country' : country || '-'}
+                      </div>
+                    )}
+                  </Field>
 
-        {/* Password Change Card */}
-        <div className="col-12">
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">{t('profile.password')}</h3>
-              {!isChangingPassword && !isEditingProfile && !isDemo && (
-                <div className="card-actions">
-                  <button
+                  {/* Vessel Type */}
+                  <Field>
+                    <FieldLabel>
+                      {t('profile.vesselType')} {isEditingProfile ? '*' : ''}
+                    </FieldLabel>
+                    {isEditingProfile ? (
+                      <Select
+                        items={vesselItems}
+                        value={vesselType || null}
+                        onValueChange={(v) => setVesselType(v ?? '')}
+                        disabled={loading}
+                        required
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {vesselTypes.map(({ value, labelKey }) => (
+                              <SelectItem key={value} value={value}>
+                                {t(labelKey)}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="py-1 text-sm">
+                        {vesselType ? getVesselLabel(vesselType) : '-'}
+                      </div>
+                    )}
+                  </Field>
+
+                  {/* Vessel Name */}
+                  <Field data-disabled={(isEditingProfile && !isBoatNameRequired) || undefined}>
+                    <FieldLabel htmlFor="profile-boat">
+                      {t('profile.boatName')} {isBoatNameRequired && isEditingProfile ? '*' : ''}
+                    </FieldLabel>
+                    {isEditingProfile ? (
+                      <>
+                        <Input
+                          id="profile-boat"
+                          type="text"
+                          value={boatName}
+                          onChange={(e) => setBoatName(e.target.value)}
+                          disabled={loading || !isBoatNameRequired}
+                          required={isBoatNameRequired}
+                          placeholder={
+                            isBoatNameRequired
+                              ? t('auth.registration.boatNamePlaceholder')
+                              : t('profile.noBoatName')
+                          }
+                        />
+                        {!isBoatNameRequired && (
+                          <FieldDescription>
+                            {t('auth.registration.boatNameNotRequired')}
+                          </FieldDescription>
+                        )}
+                      </>
+                    ) : (
+                      <div className="py-1 text-sm">
+                        {isDemo ? 'Demo Vessel' : boatName || t('profile.noBoatName')}
+                      </div>
+                    )}
+                  </Field>
+
+                  {/* Main Gear Type */}
+                  <Field>
+                    <FieldLabel>
+                      {t('profile.mainGearType')} {isEditingProfile ? '*' : ''}
+                    </FieldLabel>
+                    {isEditingProfile ? (
+                      <Select
+                        items={gearItems}
+                        value={mainGearType || null}
+                        onValueChange={(v) => setMainGearType(v ?? '')}
+                        disabled={loading}
+                        required
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {gearTypes.map(({ value, labelKey }) => (
+                              <SelectItem key={value} value={value}>
+                                {t(labelKey)}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="py-1 text-sm">
+                        {mainGearType ? getGearLabel(mainGearType) : '-'}
+                      </div>
+                    )}
+                  </Field>
+                </FieldGroup>
+              </CardContent>
+              {isEditingProfile && (
+                <CardFooter className="justify-end gap-2">
+                  <Button
                     type="button"
-                    className="btn btn-primary"
-                    onClick={() => setIsChangingPassword(true)}
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    disabled={loading}
                   >
-                    {t('profile.changePassword')}
-                  </button>
-                </div>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button type="submit" disabled={loading}>
+                    {loading && <Spinner data-icon="inline-start" />}
+                    {loading ? t('profile.saving') : t('common.save')}
+                  </Button>
+                </CardFooter>
               )}
-            </div>
+            </Card>
+          </form>
+
+          {/* Password Change Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('profile.password')}</CardTitle>
+              {!isChangingPassword && !isEditingProfile && !isDemo && (
+                <CardAction>
+                  <Button type="button" onClick={() => setIsChangingPassword(true)}>
+                    {t('profile.changePassword')}
+                  </Button>
+                </CardAction>
+              )}
+            </CardHeader>
             {isChangingPassword && (
               <form onSubmit={handleChangePassword}>
-                <div className="card-body">
-                  <div className="row g-3">
-                    <div className="col-md-12">
-                      <label className="form-label required">{t('profile.currentPassword')}</label>
-                      <div className="input-group input-group-flat">
-                        <span className="input-group-text">
-                          <IconLock size={18} stroke={1.5} />
-                        </span>
-                        <input
+                <CardContent className="pb-4">
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="current-password">
+                        {t('profile.currentPassword')} *
+                      </FieldLabel>
+                      <InputGroup>
+                        <InputGroupAddon>
+                          <LockIcon />
+                        </InputGroupAddon>
+                        <InputGroupInput
+                          id="current-password"
                           type="password"
-                          className="form-control"
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           disabled={loading}
                           required
                         />
-                      </div>
-                    </div>
+                      </InputGroup>
+                    </Field>
 
-                    <div className="col-md-6">
-                      <label className="form-label required">{t('profile.newPassword')}</label>
-                      <div className="input-group input-group-flat">
-                        <span className="input-group-text">
-                          <IconLock size={18} stroke={1.5} />
-                        </span>
-                        <input
-                          type="password"
-                          className="form-control"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          disabled={loading}
-                          required
-                          minLength={6}
-                        />
-                      </div>
-                      <div className="form-hint">{t('auth.registration.passwordHint')}</div>
-                    </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="new-password">
+                          {t('profile.newPassword')} *
+                        </FieldLabel>
+                        <InputGroup>
+                          <InputGroupAddon>
+                            <LockIcon />
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            id="new-password"
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            disabled={loading}
+                            required
+                            minLength={6}
+                          />
+                        </InputGroup>
+                        <FieldDescription>{t('auth.registration.passwordHint')}</FieldDescription>
+                      </Field>
 
-                    <div className="col-md-6">
-                      <label className="form-label required">{t('profile.confirmNewPassword')}</label>
-                      <div className="input-group input-group-flat">
-                        <span className="input-group-text">
-                          <IconLock size={18} stroke={1.5} />
-                        </span>
-                        <input
-                          type="password"
-                          className="form-control"
-                          value={confirmNewPassword}
-                          onChange={(e) => setConfirmNewPassword(e.target.value)}
-                          disabled={loading}
-                          required
-                        />
-                      </div>
+                      <Field>
+                        <FieldLabel htmlFor="confirm-new-password">
+                          {t('profile.confirmNewPassword')} *
+                        </FieldLabel>
+                        <InputGroup>
+                          <InputGroupAddon>
+                            <LockIcon />
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            id="confirm-new-password"
+                            type="password"
+                            value={confirmNewPassword}
+                            onChange={(e) => setConfirmNewPassword(e.target.value)}
+                            disabled={loading}
+                            required
+                          />
+                        </InputGroup>
+                      </Field>
                     </div>
-                  </div>
-                </div>
-                <div className="card-footer text-end">
-                  <button
+                  </FieldGroup>
+                </CardContent>
+                <CardFooter className="justify-end gap-2">
+                  <Button
                     type="button"
-                    className="btn btn-link link-secondary me-2"
+                    variant="outline"
                     onClick={handleCancelPasswordChange}
                     disabled={loading}
                   >
                     {t('common.cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={loading}
-                  >
+                  </Button>
+                  <Button type="submit" disabled={loading}>
+                    {loading && <Spinner data-icon="inline-start" />}
                     {loading ? t('profile.saving') : t('profile.changePassword')}
-                  </button>
-                </div>
+                  </Button>
+                </CardFooter>
               </form>
             )}
-          </div>
+          </Card>
         </div>
-      </div>
-        </>
       )}
     </MainLayout>
   );

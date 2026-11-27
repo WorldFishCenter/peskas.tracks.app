@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconWifi, IconWifiOff, IconAlertTriangle, IconCheck } from '@tabler/icons-react';
+import { AlertTriangleIcon, CheckIcon, WifiIcon, WifiOffIcon } from 'lucide-react';
+import { cn } from 'cn';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface NetworkStatusProps {
   compact?: boolean;
@@ -19,22 +22,20 @@ const NetworkStatus: React.FC<NetworkStatusProps> = ({ compact = false, showDeta
   useEffect(() => {
     const updateOnlineStatus = () => {
       const online = navigator.onLine;
-      
-      // Track if we were offline and now came back online
+
       if (!isOnline && online) {
         setWasOffline(true);
         setShowReconnectedMessage(true);
-        // Hide reconnected message after 5 seconds
         setTimeout(() => setShowReconnectedMessage(false), 5000);
       }
-      
+
       setIsOnline(online);
     };
 
     const updateConnectionInfo = () => {
       // @ts-expect-error - Connection API might not be fully typed
       const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-      
+
       if (connection) {
         setConnectionType(connection.type || 'unknown');
         setEffectiveType(connection.effectiveType || '4g');
@@ -42,18 +43,15 @@ const NetworkStatus: React.FC<NetworkStatusProps> = ({ compact = false, showDeta
       }
     };
 
-    // Listen for network changes
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
 
-    // Listen for connection changes if supported
     // @ts-expect-error - Navigator connection API is not fully standardized
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     if (connection) {
       connection.addEventListener('change', updateConnectionInfo);
     }
 
-    // Initial setup
     updateOnlineStatus();
     updateConnectionInfo();
 
@@ -68,37 +66,36 @@ const NetworkStatus: React.FC<NetworkStatusProps> = ({ compact = false, showDeta
 
   const getConnectionQuality = () => {
     if (!isOnline) return 'offline';
-    
+
     if (effectiveType === '4g' || effectiveType === '3g') {
       return downlink > 1.5 ? 'excellent' : downlink > 0.5 ? 'good' : 'poor';
     }
-    
+
     if (effectiveType === '2g' || effectiveType === 'slow-2g') {
       return 'poor';
     }
-    
+
     return 'unknown';
   };
 
   const getConnectionIcon = () => {
-    if (!isOnline) return <IconWifiOff className="text-danger" size={16} />;
-    
+    if (!isOnline) return <WifiOffIcon className="size-4 text-destructive" />;
+
     const quality = getConnectionQuality();
     switch (quality) {
       case 'excellent':
-        return <IconWifi className="text-success" size={16} />;
       case 'good':
-        return <IconWifi className="text-primary" size={16} />;
+        return <WifiIcon className="size-4 text-primary" />;
       case 'poor':
-        return <IconWifi className="text-warning" size={16} />;
+        return <WifiIcon className="size-4 text-destructive" />;
       default:
-        return <IconWifi className="text-muted" size={16} />;
+        return <WifiIcon className="size-4 text-muted-foreground" />;
     }
   };
 
   const getStatusText = () => {
     if (!isOnline) return t('network.offline');
-    
+
     const quality = getConnectionQuality();
     switch (quality) {
       case 'excellent':
@@ -113,71 +110,61 @@ const NetworkStatus: React.FC<NetworkStatusProps> = ({ compact = false, showDeta
   };
 
   const getStatusColor = () => {
-    if (!isOnline) return 'text-danger';
-    
+    if (!isOnline) return 'text-destructive';
+
     const quality = getConnectionQuality();
     switch (quality) {
       case 'excellent':
-        return 'text-success';
       case 'good':
         return 'text-primary';
       case 'poor':
-        return 'text-warning';
+        return 'text-destructive';
       default:
-        return 'text-muted';
+        return 'text-muted-foreground';
     }
   };
 
   if (compact) {
     return (
-      <div className="d-flex align-items-center gap-2">
+      <div className="flex items-center gap-2">
         {getConnectionIcon()}
         {showReconnectedMessage && (
-          <small className="text-success fw-medium">
-            <IconCheck size={12} className="me-1" />
+          <span className="flex items-center gap-1 text-xs font-medium text-primary">
+            <CheckIcon className="size-3" />
             {t('network.backOnline')}
-          </small>
+          </span>
         )}
       </div>
     );
   }
 
-  // Show reconnection alert
   if (showReconnectedMessage) {
     return (
-      <div className="alert alert-success d-flex align-items-center mb-2" role="alert">
-        <IconCheck size={20} className="me-2" />
-        <div>
-          <strong>{t('network.connectionRestored')}</strong>
-          <div className="small">{t('network.pendingUploadsWillResume')}</div>
-        </div>
-      </div>
+      <Alert>
+        <CheckIcon className="text-primary" />
+        <AlertTitle>{t('network.connectionRestored')}</AlertTitle>
+        <AlertDescription>{t('network.pendingUploadsWillResume')}</AlertDescription>
+      </Alert>
     );
   }
 
-  // Show offline warning
   if (!isOnline) {
     return (
-      <div className="alert alert-warning d-flex align-items-center mb-2" role="alert">
-        <IconWifiOff size={20} className="me-2" />
-        <div>
-          <strong>{t('network.youreOffline')}</strong>
-          <div className="small">{t('network.dataWillBeSaved')}</div>
-        </div>
-      </div>
+      <Alert variant="destructive">
+        <WifiOffIcon />
+        <AlertTitle>{t('network.youreOffline')}</AlertTitle>
+        <AlertDescription>{t('network.dataWillBeSaved')}</AlertDescription>
+      </Alert>
     );
   }
 
-  // Show poor connection warning
   if (getConnectionQuality() === 'poor') {
     return (
-      <div className="alert alert-info d-flex align-items-center mb-2" role="alert">
-        <IconAlertTriangle size={20} className="me-2" />
-        <div>
-          <strong>{t('network.slowConnectionDetected')}</strong>
-          <div className="small">{t('network.uploadsMayTakeLonger')}</div>
-        </div>
-      </div>
+      <Alert>
+        <AlertTriangleIcon />
+        <AlertTitle>{t('network.slowConnectionDetected')}</AlertTitle>
+        <AlertDescription>{t('network.uploadsMayTakeLonger')}</AlertDescription>
+      </Alert>
     );
   }
 
@@ -186,26 +173,20 @@ const NetworkStatus: React.FC<NetworkStatusProps> = ({ compact = false, showDeta
   }
 
   return (
-    <div className="card border-0 bg-light">
-      <div className="card-body py-2 px-3">
-        <div className="d-flex align-items-center justify-content-between">
-          <div className="d-flex align-items-center gap-2">
-            {getConnectionIcon()}
-            <small className={`fw-medium ${getStatusColor()}`}>
-              {getStatusText()}
-            </small>
-          </div>
-          {showDetails && connectionType !== 'unknown' && (
-            <div className="d-flex gap-2">
-              <small className="text-muted">{effectiveType?.toUpperCase()}</small>
-              {downlink > 0 && (
-                <small className="text-muted">{downlink.toFixed(1)} Mbps</small>
-              )}
-            </div>
-          )}
+    <Card size="sm" className="bg-muted/40">
+      <CardContent className="flex items-center justify-between py-0">
+        <div className="flex items-center gap-2">
+          {getConnectionIcon()}
+          <span className={cn('text-xs font-medium', getStatusColor())}>{getStatusText()}</span>
         </div>
-      </div>
-    </div>
+        {showDetails && connectionType !== 'unknown' && (
+          <div className="flex gap-2 text-xs text-muted-foreground">
+            <span>{effectiveType?.toUpperCase()}</span>
+            {downlink > 0 && <span>{downlink.toFixed(1)} Mbps</span>}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

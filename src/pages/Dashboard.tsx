@@ -1,41 +1,67 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import DateRangeSelector from '../components/DateRangeSelector';
 import TripsTable from '../components/TripsTable';
-import { IconCalendarStats, IconFish } from '@tabler/icons-react';
+import {
+  AlertTriangleIcon,
+  CalendarRangeIcon,
+  FishIcon,
+  ShipIcon,
+  UsersIcon,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { subDays, differenceInDays } from 'date-fns';
 import { Trip, LiveLocation, GPSCoordinate, Waypoint, WaypointFormData } from '../types';
-import { calculateVesselInsights } from '../utils/calculations';
 import { formatDisplayDate } from '../utils/formatters';
-import { renderNoImeiDataMessage, hasTrackingDevice as userHasTrackingDevice } from '../utils/userInfo';
-import { useTripData } from '../hooks/useTripData';
-import { useLiveLocations } from '../hooks/useLiveLocations';
-import { useVesselSelection } from '../hooks/useVesselSelection';
+import { hasTrackingDevice as userHasTrackingDevice } from '../utils/userInfo';
+import { useVesselTracks } from '../hooks/useVesselTracks';
 import { useWaypoints } from '../hooks/useWaypoints';
 import VesselDetailsPanel from '../components/dashboard/VesselDetailsPanel';
 import VesselInsightsPanel from '../components/dashboard/VesselInsightsPanel';
-import { clearCache } from '../api/pelagicDataService';
 import { getCurrentGPSCoordinate } from '../utils/gpsUtils';
 
-import MapContainer from '../components/dashboard/MapContainer';
 import TripSelectionModal from '../components/TripSelectionModal';
-import ReportCatchForm from '../components/ReportCatchForm';
+import ReportCatchForm from '../components/catch-form/ReportCatchForm';
 import ReportCatchFooter from '../components/ReportCatchFooter';
 import BoatSelectionModal from '../components/BoatSelectionModal';
 import WaypointsModal from '../components/waypoints/WaypointsModal';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+const FishersMap = React.lazy(() => import('../components/Map'));
 
 const Dashboard: React.FC = () => {
   const { currentUser, updateUserImeis } = useAuth();
   const { t } = useTranslation();
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 7));
   const [dateTo, setDateTo] = useState<Date>(new Date());
+  const [selectedTripId, setSelectedTripId] = useState<string | undefined>(undefined);
   const [centerMapOnLiveLocations, setCenterMapOnLiveLocations] = useState(false);
   const [isViewingLiveLocations, setIsViewingLiveLocations] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Device location state (for non-PDS users)
+  // Device location state (for self-registered fishers without a tracking device)
   const [deviceLocation, setDeviceLocation] = useState<GPSCoordinate | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -43,6 +69,9 @@ const Dashboard: React.FC = () => {
   // Whether there is a device whose data we can show — for an administrator
   // that means the vessel they have selected.
   const hasTrackingDevice = userHasTrackingDevice(currentUser);
+  const isAdminMode = currentUser?.role === 'admin';
+  const adminHasNoVesselsSelected =
+    isAdminMode && (!currentUser?.imeis || currentUser.imeis.length === 0);
 
   // Catch reporting state
   const [showTripSelection, setShowTripSelection] = useState(false);
@@ -58,50 +87,48 @@ const Dashboard: React.FC = () => {
     addWaypoint,
     removeWaypoint,
     toggleWaypointVisibility,
-    toggleAllWaypoints
+    toggleAllWaypoints,
   } = useWaypoints();
   const [showWaypointsModal, setShowWaypointsModal] = useState(false);
   const [selectedMapCoordinates, setSelectedMapCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [isWaypointSelectionMode, setIsWaypointSelectionMode] = useState(false);
   const [centeredWaypoint, setCenteredWaypoint] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Custom hooks for data management
+  // Single deep vessel-tracks module: trips, points, tripById, live locations, insights
   const {
     trips,
     tripPoints,
+    tripById,
+    liveLocations,
+    insights,
     loading,
     dataAvailable,
     errorMessage,
-    refetch: refetchTripData
-  } = useTripData(dateFrom, dateTo);
+    refetch: refetchTracks,
+    refresh: refreshTracks,
+  } = useVesselTracks(dateFrom, dateTo);
 
-  const {
-    liveLocations
-  } = useLiveLocations();
+  const clearSelection = () => setSelectedTripId(undefined);
 
-  const {
-    selectedTripId,
-    handleSelectVessel: originalHandleSelectVessel,
-    handleSelectTrip: originalHandleSelectTrip,
-    clearSelection
-  } = useVesselSelection(trips, tripPoints, liveLocations);
-
-  // Wrapper for handleSelectVessel that also resets live location view
   const handleSelectVessel = (vessel: LiveLocation | null) => {
-    const mappedVessel = vessel ? {
-      id: vessel.imei,
-      name: vessel.boatName
-    } : null;
-    originalHandleSelectVessel(mappedVessel);
+    if (!vessel) {
+      clearSelection();
+      return;
+    }
+
+    // Select the most recent loaded trip for this vessel's IMEI, if any.
+    const matchingTrips = trips
+      .filter((trip) => trip.imei === vessel.imei)
+      .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime());
+
+    setSelectedTripId(matchingTrips[0]?.id);
     setIsViewingLiveLocations(false);
   };
 
-  // Wrapper for handleSelectTrip that also resets live location view and scrolls to map
   const handleSelectTrip = (tripId: string) => {
-    originalHandleSelectTrip(tripId);
+    setSelectedTripId(tripId);
     setIsViewingLiveLocations(false);
 
-    // Scroll to map on mobile devices after a short delay to allow state to update
     setTimeout(() => {
       const mapElement = document.querySelector('[data-map-container]');
       if (mapElement) {
@@ -110,62 +137,43 @@ const Dashboard: React.FC = () => {
     }, 100);
   };
 
-  // Manual refresh handler - clears cache and refetches data
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      clearCache();
-      await refetchTripData();
+      await refreshTracks();
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  // Admin vessel selection handlers
-  const handleShowBoatSelection = () => {
-    setShowBoatSelection(true);
-  };
-
   const handleBoatSelect = (imei: string) => {
-    // For admin users, update their IMEIs to include the selected vessel
     if (currentUser && currentUser.role === 'admin') {
       updateUserImeis([imei]);
     }
     setShowBoatSelection(false);
   };
 
-  const handleCloseBoatSelection = () => {
-    setShowBoatSelection(false);
-  };
-
   const handleDateChange = (newDateFrom: Date, newDateTo: Date) => {
     setDateFrom(newDateFrom);
     setDateTo(newDateTo);
-    // Reset selection when date range changes
     clearSelection();
-    // Reset live location view when user changes date range
     setIsViewingLiveLocations(false);
   };
 
-
-  // Function to center map on live locations (PDS users)
   const centerOnLiveLocations = () => {
     if (liveLocations.length > 0) {
       setCenterMapOnLiveLocations(true);
       setIsViewingLiveLocations(true);
-      // Clear trip selection when viewing live locations
       clearSelection();
-      // Reset the flag after a short delay
       setTimeout(() => setCenterMapOnLiveLocations(false), 100);
     }
   };
 
-  // Function to get and center on device location (non-PDS users)
   const getMyLocation = async () => {
     if (isGettingLocation) return;
 
     setIsGettingLocation(true);
-    setLocationError(null); // Clear any previous errors
+    setLocationError(null);
 
     try {
       const result = await getCurrentGPSCoordinate();
@@ -173,9 +181,7 @@ const Dashboard: React.FC = () => {
         setDeviceLocation(result.coordinate);
         setIsViewingLiveLocations(true);
         clearSelection();
-        console.log('✅ Device location obtained:', result.coordinate);
       } else if (result.error) {
-        // Set error message using translation key
         setLocationError(result.error.message);
         console.warn('⚠️ Could not get device location:', result.error.code);
       }
@@ -187,13 +193,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Catch reporting handlers
   const handleReportCatchClick = () => {
-    // For non-PDS users, skip trip selection and go directly to catch form.
-    // An administrator with a vessel selected reports against that vessel's
-    // trips, so they take the ordinary path.
     if (!hasTrackingDevice) {
-      // Create a placeholder trip for direct catch reporting
       const placeholderTrip: Trip = {
         id: `standalone_${Date.now()}`,
         startTime: new Date().toISOString(),
@@ -206,17 +207,12 @@ const Dashboard: React.FC = () => {
         distanceMeters: 0,
         created: new Date().toISOString(),
         updated: new Date().toISOString(),
-        imei: ''
+        imei: '',
       };
       setSelectedTripForCatch(placeholderTrip);
     } else {
-      // For PDS users, show trip selection modal
       setShowTripSelection(true);
     }
-  };
-
-  const handleTripSelectionClose = () => {
-    setShowTripSelection(false);
   };
 
   const handleTripSelect = (trip: Trip) => {
@@ -224,55 +220,25 @@ const Dashboard: React.FC = () => {
     setShowTripSelection(false);
   };
 
-  const handleCatchFormClose = () => {
-    setSelectedTripForCatch(null);
-  };
-
-  const handleCatchFormSuccess = () => {
-    setSelectedTripForCatch(null);
-  };
-
-  // Waypoint handlers
-  const handleEnterWaypointMode = () => {
-    setIsWaypointSelectionMode(true);
-  };
-
-  const handleCancelWaypointMode = () => {
-    setIsWaypointSelectionMode(false);
-  };
-
   const handleConfirmWaypointLocation = (coordinates: { lat: number; lng: number }) => {
-    // Store coordinates, exit selection mode, and open modal
     setSelectedMapCoordinates(coordinates);
     setIsWaypointSelectionMode(false);
     setShowWaypointsModal(true);
   };
 
   const handleToggleWaypointsModal = () => {
-    // If not in selection mode, just toggle the modal
     if (!isWaypointSelectionMode) {
       setShowWaypointsModal(!showWaypointsModal);
     }
   };
 
   const handleWaypointSave = async (formData: WaypointFormData) => {
-    try {
-      await addWaypoint(formData);
-      // Don't close modal - user might want to add more waypoints
-      setSelectedMapCoordinates(null);
-    } catch (err) {
-      console.error('Error saving waypoint:', err);
-      throw err;
-    }
+    await addWaypoint(formData);
+    setSelectedMapCoordinates(null);
   };
 
   const handleWaypointDelete = async (waypointId: string) => {
-    try {
-      await removeWaypoint(waypointId);
-    } catch (err) {
-      console.error('Error deleting waypoint:', err);
-      throw err;
-    }
+    await removeWaypoint(waypointId);
   };
 
   const handleWaypointModalClose = () => {
@@ -281,86 +247,42 @@ const Dashboard: React.FC = () => {
   };
 
   const handleShowWaypointOnMap = (waypoint: Waypoint) => {
-    // If waypoint is hidden, make it visible
     if (waypoint.visible === false && waypoint._id) {
       toggleWaypointVisibility(waypoint._id);
     }
 
-    // Center map on the waypoint coordinates
     setCenteredWaypoint({ lat: waypoint.coordinates.lat, lng: waypoint.coordinates.lng });
-    // Close the modal to show the map
     setShowWaypointsModal(false);
-    // Clear trip selection to focus on waypoint
     clearSelection();
-    // Reset after a short delay
     setTimeout(() => setCenteredWaypoint(null), 100);
   };
 
-  // Calculate trip statistics for vessel insights
-  const insights = calculateVesselInsights(tripPoints);
+  // Taller map for self-registered fishers since they have no trip table or vessel panels.
+  const mapHeight = hasTrackingDevice ? '500px' : 'calc(100vh - 200px)';
+  const showNoTripsMessage =
+    hasTrackingDevice && dataAvailable === false && !loading && !errorMessage && !isViewingLiveLocations;
 
-  // Built once and rendered into whichever layout is active, so the prop list
-  // has a single home and the map can never mount twice.
-  const mapContainer = (
-    <MapContainer
-      loading={loading}
-      errorMessage={errorMessage}
-      dataAvailable={dataAvailable}
-      dateFrom={dateFrom}
-      dateTo={dateTo}
-      selectedTripId={selectedTripId}
-      liveLocations={liveLocations}
-      centerOnLiveLocations={centerMapOnLiveLocations}
-      onSelectVessel={handleSelectVessel}
-      onRetry={refetchTripData}
-      waypoints={visibleWaypoints}
-      onTryWiderDateRange={() => handleDateChange(subDays(new Date(), 90), new Date())}
-      renderNoImeiDataMessage={() => renderNoImeiDataMessage(currentUser, t)}
-      isViewingLiveLocations={isViewingLiveLocations}
-      onCenterOnLiveLocations={centerOnLiveLocations}
-      isAdminMode={currentUser?.role === 'admin'}
-      adminHasNoVesselsSelected={currentUser?.role === 'admin' && (!currentUser?.imeis || currentUser.imeis.length === 0)}
-      onShowVesselSelection={handleShowBoatSelection}
-      onRefresh={handleRefresh}
-      isRefreshing={isRefreshing}
-      hasTrackingDevice={hasTrackingDevice}
-      deviceLocation={deviceLocation}
-      onGetMyLocation={getMyLocation}
-      isGettingLocation={isGettingLocation}
-      showNoTripsMessage={hasTrackingDevice && dataAvailable === false && !loading && !errorMessage && !isViewingLiveLocations}
-      onEnterWaypointMode={handleEnterWaypointMode}
-      onToggleWaypoints={handleToggleWaypointsModal}
-      waypointsCount={waypoints.length}
-      isWaypointSelectionMode={isWaypointSelectionMode}
-      onCancelWaypointMode={handleCancelWaypointMode}
-      onConfirmWaypointLocation={handleConfirmWaypointLocation}
-      centeredWaypoint={centeredWaypoint}
-    />
-  );
-
-  // Create the page header
   const pageHeader = (
-    <div className="page-header d-print-none">
-      <div className="container-xl">
+    <div className="border-b bg-background print:hidden">
+      <div className="mx-auto max-w-7xl px-4 py-3">
         {hasTrackingDevice && (
-          <div className="page-pretitle text-secondary fs-sm">
+          <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {t('dashboard.dateRange', {
               from: formatDisplayDate(dateFrom),
               to: formatDisplayDate(dateTo),
-              days: differenceInDays(dateTo, dateFrom) + 1
+              days: differenceInDays(dateTo, dateFrom) + 1,
             })}
           </div>
         )}
-        <h2 className="page-title mb-0 mt-0">
+        <h2 className="text-xl font-semibold tracking-tight">
           {hasTrackingDevice ? t('dashboard.title') : t('dashboard.titleNonPds')}
         </h2>
       </div>
     </div>
   );
 
-  // Create the sticky footer (mobile only)
   const stickyFooter = (
-    <div className="d-md-none">
+    <div className="md:hidden">
       <ReportCatchFooter onReportCatchClick={handleReportCatchClick} />
     </div>
   );
@@ -368,46 +290,124 @@ const Dashboard: React.FC = () => {
   return (
     <MainLayout pageHeader={pageHeader} stickyFooter={stickyFooter}>
       <div className="dashboard-layout">
-        {/* Date range — sidebar on desktop, first on mobile */}
-        <div className="dashboard-layout__controls">
+        {/* Date range and Report Catch CTA */}
+        <div className="dashboard-layout__controls flex flex-col gap-3">
           {hasTrackingDevice && (
-            <div className="card mb-2">
-              <div className="card-body p-2">
-                <div className="d-flex align-items-center mb-2">
-                  <IconCalendarStats className="icon me-2 text-primary" />
-                  <h3 className="card-title m-0">{t('common.dateRange')}</h3>
-                </div>
-
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <CalendarRangeIcon className="size-4 text-primary" />
+                  {t('common.dateRange')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
                 <DateRangeSelector
                   dateFrom={dateFrom}
                   dateTo={dateTo}
                   onDateChange={handleDateChange}
                 />
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Report Catch — mobile gets this from the sticky footer instead */}
-          <div className="card mb-2 d-none d-md-block">
-            <div className="card-body p-2">
-              <button
-                className="btn btn-primary w-100 d-flex align-items-center justify-content-center position-relative"
-                onClick={handleReportCatchClick}
-                style={{ minHeight: '45px' }}
-              >
-                <IconFish className="me-2" size={20} />
-                <span className="fw-bold">{t('catch.reportCatch')}</span>
-              </button>
-              <small className="text-muted mt-2 d-block text-center">
+          <Card size="sm" className="hidden md:flex">
+            <CardContent className="flex flex-col gap-2">
+              <Button size="lg" className="h-11 w-full font-semibold" onClick={handleReportCatchClick}>
+                <FishIcon data-icon="inline-start" />
+                {t('catch.reportCatch')}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
                 {t('catch.reportFromRecentTrips')}
-              </small>
-            </div>
-          </div>
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Map and its trips table */}
-        <div className="dashboard-layout__map" data-map-container>
-          {mapContainer}
+        <div className="dashboard-layout__map flex flex-col gap-3" data-map-container>
+          <Card className="relative overflow-hidden py-0" style={{ height: mapHeight, minHeight: '400px' }}>
+            <div className="relative size-full">
+              <Suspense
+                fallback={
+                  <div className="flex size-full items-center justify-center">
+                    <Spinner className="size-6 text-primary" />
+                  </div>
+                }
+              >
+                <FishersMap
+                  tripPoints={tripPoints}
+                  tripById={tripById}
+                  onSelectVessel={handleSelectVessel}
+                  selectedTripId={selectedTripId}
+                  liveLocations={liveLocations}
+                  centerOnLiveLocations={centerMapOnLiveLocations}
+                  onCenterOnLiveLocations={centerOnLiveLocations}
+                  onRefresh={handleRefresh}
+                  isRefreshing={isRefreshing}
+                  hasTrackingDevice={hasTrackingDevice}
+                  deviceLocation={deviceLocation}
+                  onGetMyLocation={getMyLocation}
+                  isGettingLocation={isGettingLocation}
+                  showNoTripsMessage={showNoTripsMessage}
+                  waypoints={visibleWaypoints}
+                  onEnterWaypointMode={() => setIsWaypointSelectionMode(true)}
+                  onToggleWaypoints={handleToggleWaypointsModal}
+                  waypointsCount={waypoints.length}
+                  isWaypointSelectionMode={isWaypointSelectionMode}
+                  onCancelWaypointMode={() => setIsWaypointSelectionMode(false)}
+                  onConfirmWaypointLocation={handleConfirmWaypointLocation}
+                  centeredWaypoint={centeredWaypoint}
+                />
+              </Suspense>
+
+              {isAdminMode && adminHasNoVesselsSelected && !loading && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/95 backdrop-blur-xs">
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon" className="size-12">
+                        <UsersIcon className="size-6 text-primary" />
+                      </EmptyMedia>
+                      <EmptyTitle>{t('dashboard.adminMode')}</EmptyTitle>
+                      <EmptyDescription>{t('dashboard.adminSelectVesselMessage')}</EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                      <Button size="lg" onClick={() => setShowBoatSelection(true)}>
+                        <ShipIcon data-icon="inline-start" />
+                        {t('dashboard.chooseVessel')}
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                </div>
+              )}
+
+              {loading && (
+                <div className="absolute top-1/2 left-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-md">
+                  <Spinner className="text-primary" />
+                  <span className="text-sm text-muted-foreground">{t('common.loadingVesselData')}</span>
+                </div>
+              )}
+
+              {errorMessage && !loading && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/90 backdrop-blur-xs">
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon" className="size-12 bg-destructive/10 text-destructive">
+                        <AlertTriangleIcon className="size-6" />
+                      </EmptyMedia>
+                      <EmptyTitle>{t('common.errorLoadingData')}</EmptyTitle>
+                      <EmptyDescription>{errorMessage}</EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                      <Button size="lg" onClick={refetchTracks}>
+                        {t('common.tryAgain')}
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                </div>
+              )}
+            </div>
+          </Card>
 
           {hasTrackingDevice && (
             <TripsTable
@@ -419,8 +419,8 @@ const Dashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Vessel panels — under the date range on desktop, last on mobile */}
-        <div className="dashboard-layout__panels">
+        {/* Vessel panels */}
+        <div className="dashboard-layout__panels flex flex-col gap-3">
           {hasTrackingDevice && (
             <>
               <VesselDetailsPanel
@@ -433,11 +433,11 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Admin Boat Selection Modal */}
+      {/* Admin Vessel Selection Modal */}
       {showBoatSelection && (
         <BoatSelectionModal
           onSelect={handleBoatSelect}
-          onClose={handleCloseBoatSelection}
+          onClose={() => setShowBoatSelection(false)}
         />
       )}
 
@@ -445,7 +445,7 @@ const Dashboard: React.FC = () => {
       {showTripSelection && (
         <TripSelectionModal
           onSelectTrip={handleTripSelect}
-          onClose={handleTripSelectionClose}
+          onClose={() => setShowTripSelection(false)}
         />
       )}
 
@@ -453,70 +453,49 @@ const Dashboard: React.FC = () => {
       {selectedTripForCatch && (
         <ReportCatchForm
           trip={selectedTripForCatch}
-          onClose={handleCatchFormClose}
-          onSuccess={handleCatchFormSuccess}
+          onClose={() => setSelectedTripForCatch(null)}
+          onSuccess={() => setSelectedTripForCatch(null)}
         />
       )}
 
-      {/* GPS Error Modal - for non-PDS users */}
-      {!hasTrackingDevice && locationError && (
-        <div className="modal modal-blur fade show" style={{ display: 'block' }} tabIndex={-1} role="dialog" aria-modal="true">
-          <div className="modal-dialog modal-sm modal-dialog-centered" role="document">
-            <div className="modal-content">
-              <button
-                type="button"
-                className="btn-close"
-                onClick={() => setLocationError(null)}
-                aria-label={t('common.close')}
-              />
-              <div className="modal-status bg-warning"></div>
-              <div className="modal-body text-center py-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="icon mb-2 text-warning icon-lg" width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M12 9v4" />
-                  <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
-                  <path d="M12 16h.01" />
-                </svg>
-                <h3>{t('common.error')}</h3>
-                <div className="text-secondary">{t(locationError)}</div>
-                {locationError === 'gps.permissionDenied' && (
-                  <div className="text-secondary mt-3" style={{ fontSize: '0.875rem', textAlign: 'left' }}>
-                    <strong>{t('gps.androidInstructions')}</strong>
-                  </div>
-                )}
-              </div>
-              <div className="modal-footer">
-                <div className="w-100">
-                  <div className="row">
-                    <div className="col">
-                      <button
-                        type="button"
-                        className="btn w-100"
-                        onClick={() => setLocationError(null)}
-                      >
-                        {t('common.close')}
-                      </button>
-                    </div>
-                    <div className="col">
-                      <button
-                        type="button"
-                        className="btn btn-danger w-100"
-                        onClick={() => {
-                          setLocationError(null);
-                          getMyLocation();
-                        }}
-                      >
-                        {t('common.tryAgain')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {!hasTrackingDevice && locationError && <div className="modal-backdrop fade show"></div>}
+      {/* GPS Error Dialog - for self-registered fishers */}
+      <AlertDialog
+        open={!hasTrackingDevice && Boolean(locationError)}
+        onOpenChange={(open) => {
+          if (!open) setLocationError(null);
+        }}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <AlertTriangleIcon className="text-destructive" />
+            </AlertDialogMedia>
+            <AlertDialogTitle>{t('common.error')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {locationError ? t(locationError) : ''}
+            </AlertDialogDescription>
+            {locationError === 'gps.permissionDenied' && (
+              <p className="mt-2 text-left text-xs font-medium text-muted-foreground">
+                {t('gps.androidInstructions')}
+              </p>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setLocationError(null)}>
+              {t('common.close')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setLocationError(null);
+                getMyLocation();
+              }}
+            >
+              {t('common.tryAgain')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Waypoints Modal */}
       {showWaypointsModal && (
@@ -538,4 +517,4 @@ const Dashboard: React.FC = () => {
   );
 };
 
-export default Dashboard; 
+export default Dashboard;

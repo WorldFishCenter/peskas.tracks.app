@@ -2,37 +2,44 @@ import React from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { useTranslation } from 'react-i18next';
 import {
-  IconInfoCircle,
-  IconMap,
-  IconFish,
-  IconChartBar,
-  IconBulb,
-  IconTrendingUp,
-  IconClock,
-  IconUsers,
-  IconPhoto,
-  IconMapPin,
-  IconLanguage,
-  IconCircleCheck,
-  IconLogin,
-  IconCalendar,
-  IconTarget,
-  IconAward,
-  IconChevronDown,
-  IconUserPlus,
-  IconCurrentLocation,
-  IconMathMaxMin,
-  IconUserCog
-} from '@tabler/icons-react';
+  AwardIcon,
+  BarChart3Icon,
+  CalendarIcon,
+  CameraIcon,
+  CheckCircle2Icon,
+  ClockIcon,
+  CrosshairIcon,
+  FishIcon,
+  InfoIcon,
+  LanguagesIcon,
+  LightbulbIcon,
+  LogInIcon,
+  MapIcon,
+  MapPinIcon,
+  TargetIcon,
+  TrendingUpIcon,
+  UserCogIcon,
+  UserPlusIcon,
+  UsersIcon,
+  WavesIcon,
+} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 
 const Info: React.FC = () => {
   const { t } = useTranslation();
 
   const pageHeader = (
-    <div className="page-header d-print-none">
-      <div className="container-xl">
-        <h2 className="page-title mb-0 mt-0">
-          <IconInfoCircle className="me-2" size={32} />
+    <div className="border-b bg-background print:hidden">
+      <div className="mx-auto max-w-7xl px-4 py-4">
+        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <InfoIcon className="size-6 text-primary" />
           {t('info.title')}
         </h2>
       </div>
@@ -41,576 +48,426 @@ const Info: React.FC = () => {
 
   return (
     <MainLayout pageHeader={pageHeader}>
-      <div className="row g-4">
+      <div className="flex flex-col gap-5">
         {/* Hero Welcome Section */}
-        <div className="col-12">
-          <div className="card card-lg bg-primary-lt">
-            <div className="card-body">
-              <div className="row align-items-center">
-                <div className="col-auto">
-                  <IconBulb size={48} className="text-primary" />
-                </div>
-                <div className="col">
-                  <h3 className="mb-1">{t('info.welcome.title')}</h3>
-                  <p className="text-secondary mb-0">{t('info.welcome.subtitle')}</p>
-                </div>
-              </div>
+        <Card className="bg-primary/5 ring-primary/20">
+          <CardHeader className="flex-row items-center gap-4">
+            <LightbulbIcon className="size-10 shrink-0 text-primary" />
+            <div className="flex flex-col gap-1">
+              <CardTitle className="text-lg">{t('info.welcome.title')}</CardTitle>
+              <CardDescription>{t('info.welcome.subtitle')}</CardDescription>
             </div>
-          </div>
-        </div>
+          </CardHeader>
+        </Card>
 
         {/* Getting Started */}
-        <div className="col-12">
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">
-                <IconLogin className="me-2" />
-                {t('info.gettingStarted.title')}
-              </h3>
-            </div>
-            <div className="card-body">
-              <div className="row g-4">
-                <div className="col-12">
-                  <div className="mb-2">
-                    <IconUserPlus className="me-2" size={20} />
-                    <strong>1. {t('info.gettingStarted.step1Title')}</strong>
-                  </div>
-                  <div className="text-secondary">{t('info.gettingStarted.step1Desc')}</div>
-                </div>
-                <div className="col-12">
-                  <div className="mb-2">
-                    <strong>2. {t('info.gettingStarted.step2Title')}</strong>
-                  </div>
-                  <div className="text-secondary">{t('info.gettingStarted.step2Desc')}</div>
-                </div>
-                <div className="col-12">
-                  <div className="mb-2">
-                    <IconLanguage className="me-2" size={20} />
-                    <strong>3. {t('info.gettingStarted.step3Title')}</strong>
-                  </div>
-                  <div className="text-secondary">{t('info.gettingStarted.step3Desc')}</div>
-                </div>
-                <div className="col-12">
-                  <div className="mb-2">
-                    <strong>4. {t('info.gettingStarted.step4Title')}</strong>
-                  </div>
-                  <div className="text-secondary">{t('info.gettingStarted.step4Desc')}</div>
-                </div>
-                <div className="col-12">
-                  <div className="alert alert-info mb-0">
-                    <div className="d-flex">
-                      <IconCircleCheck className="me-2 flex-shrink-0" size={20} />
-                      <div>
-                        <strong>{t('info.gettingStarted.refreshTitle')}</strong>
-                        <div className="text-secondary mt-1">{t('info.gettingStarted.refreshDesc')}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LogInIcon className="size-5 text-primary" />
+              {t('info.gettingStarted.title')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 font-semibold">
+                <UserPlusIcon className="size-4 text-primary" />
+                <span>1. {t('info.gettingStarted.step1Title')}</span>
               </div>
+              <p className="text-sm text-muted-foreground">{t('info.gettingStarted.step1Desc')}</p>
             </div>
-          </div>
-        </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="font-semibold">2. {t('info.gettingStarted.step2Title')}</div>
+              <p className="text-sm text-muted-foreground">{t('info.gettingStarted.step2Desc')}</p>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 font-semibold">
+                <LanguagesIcon className="size-4 text-primary" />
+                <span>3. {t('info.gettingStarted.step3Title')}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">{t('info.gettingStarted.step3Desc')}</p>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="font-semibold">4. {t('info.gettingStarted.step4Title')}</div>
+              <p className="text-sm text-muted-foreground">{t('info.gettingStarted.step4Desc')}</p>
+            </div>
+
+            <Alert>
+              <CheckCircle2Icon className="text-primary" />
+              <AlertTitle>{t('info.gettingStarted.refreshTitle')}</AlertTitle>
+              <AlertDescription>{t('info.gettingStarted.refreshDesc')}</AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
 
         {/* Main Features - Accordion */}
-        <div className="col-12">
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">{t('info.features.title')}</h3>
-            </div>
-            <div className="list-group list-group-flush">
-              <div className="accordion" id="featuresAccordion">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('info.features.title')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Accordion defaultValue={['trips']}>
+              {/* Feature 1: View Fishing Trips */}
+              <AccordionItem value="trips">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <MapIcon className="size-4 text-primary" />
+                    {t('info.features.viewTrips.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <ul className="flex flex-col gap-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <span>{t('info.features.viewTrips.point1')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <span>{t('info.features.viewTrips.point2')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <span>{t('info.features.viewTrips.point3')}</span>
+                    </li>
+                  </ul>
+                  <Alert>
+                    <CalendarIcon className="text-primary" />
+                    <AlertDescription>{t('info.features.viewTrips.tip')}</AlertDescription>
+                  </Alert>
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Feature 1: View Fishing Trips */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseTrips"
-                      aria-expanded="true"
-                    >
-                      <IconMap className="me-2" size={20} />
-                      {t('info.features.viewTrips.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
+              {/* Feature 2: Report Catches */}
+              <AccordionItem value="catch">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <FishIcon className="size-4 text-primary" />
+                    {t('info.features.reportCatch.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <div>
+                    <h4 className="font-semibold">{t('info.features.reportCatch.whenTitle')}</h4>
+                    <p className="text-muted-foreground">
+                      {t('info.features.reportCatch.whenDesc')}
+                    </p>
                   </div>
-                  <div
-                    id="collapseTrips"
-                    className="accordion-collapse collapse show"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <ul className="list-unstyled mb-3">
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-success me-2" size={20} />
-                          {t('info.features.viewTrips.point1')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-success me-2" size={20} />
-                          {t('info.features.viewTrips.point2')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-success me-2" size={20} />
-                          {t('info.features.viewTrips.point3')}
-                        </li>
-                      </ul>
-                      <div className="alert alert-info mb-0">
-                        <div className="d-flex">
-                          <IconCalendar className="me-2 flex-shrink-0" size={20} />
-                          <div>{t('info.features.viewTrips.tip')}</div>
-                        </div>
-                      </div>
-                    </div>
+                  <div>
+                    <h4 className="font-semibold">{t('info.features.reportCatch.whatTitle')}</h4>
+                    <ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">
+                      <li>{t('info.features.reportCatch.whatPoint1')}</li>
+                      <li>{t('info.features.reportCatch.whatPoint2')}</li>
+                      <li>{t('info.features.reportCatch.whatPoint3')}</li>
+                    </ul>
                   </div>
-                </div>
+                  <div>
+                    <h4 className="flex items-center gap-1.5 font-semibold">
+                      <CameraIcon className="size-4 text-primary" />
+                      {t('info.features.reportCatch.photosTitle')}
+                    </h4>
+                    <p className="text-muted-foreground">
+                      {t('info.features.reportCatch.photosDesc')}
+                    </p>
+                  </div>
+                  <Alert>
+                    <AlertTitle>{t('info.features.reportCatch.whyTitle')}</AlertTitle>
+                    <AlertDescription>{t('info.features.reportCatch.whyDesc')}</AlertDescription>
+                  </Alert>
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Feature 2: Report Catches */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button collapsed"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseCatch"
-                      aria-expanded="false"
-                    >
-                      <IconFish className="me-2" size={20} />
-                      {t('info.features.reportCatch.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
-                  </div>
-                  <div
-                    id="collapseCatch"
-                    className="accordion-collapse collapse"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <div className="mb-3">
-                        <h4 className="h5">{t('info.features.reportCatch.whenTitle')}</h4>
-                        <p className="text-secondary">{t('info.features.reportCatch.whenDesc')}</p>
-                      </div>
-                      <div className="mb-3">
-                        <h4 className="h5">{t('info.features.reportCatch.whatTitle')}</h4>
-                        <ul className="mb-2">
-                          <li>{t('info.features.reportCatch.whatPoint1')}</li>
-                          <li>{t('info.features.reportCatch.whatPoint2')}</li>
-                          <li>{t('info.features.reportCatch.whatPoint3')}</li>
-                        </ul>
-                      </div>
-                      <div className="mb-3">
-                        <h4 className="h5">
-                          <IconPhoto className="me-2" size={20} />
-                          {t('info.features.reportCatch.photosTitle')}
-                        </h4>
-                        <p className="text-secondary mb-0">{t('info.features.reportCatch.photosDesc')}</p>
-                      </div>
-                      <div className="alert alert-success mb-0">
-                        <div className="fw-bold mb-1">{t('info.features.reportCatch.whyTitle')}</div>
-                        <div>{t('info.features.reportCatch.whyDesc')}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              {/* Feature 3: My Stats */}
+              <AccordionItem value="stats">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <BarChart3Icon className="size-4 text-primary" />
+                    {t('info.features.myStats.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <ul className="flex flex-col gap-2">
+                    <li className="flex items-start gap-2">
+                      <TrendingUpIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.myStats.point1')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <UsersIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.myStats.point2')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <AwardIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.myStats.point3')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <TargetIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.myStats.point4')}</span>
+                    </li>
+                  </ul>
+                  <Alert>
+                    <AlertTitle>{t('info.features.myStats.benefitTitle')}</AlertTitle>
+                    <AlertDescription>{t('info.features.myStats.benefitDesc')}</AlertDescription>
+                  </Alert>
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Feature 3: My Stats */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button collapsed"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseStats"
-                      aria-expanded="false"
-                    >
-                      <IconChartBar className="me-2" size={20} />
-                      {t('info.features.myStats.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
-                  </div>
-                  <div
-                    id="collapseStats"
-                    className="accordion-collapse collapse"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <ul className="list-unstyled mb-3">
-                        <li className="mb-2">
-                          <IconTrendingUp className="text-muted me-2" size={20} />
-                          {t('info.features.myStats.point1')}
-                        </li>
-                        <li className="mb-2">
-                          <IconUsers className="text-muted me-2" size={20} />
-                          {t('info.features.myStats.point2')}
-                        </li>
-                        <li className="mb-2">
-                          <IconAward className="text-muted me-2" size={20} />
-                          {t('info.features.myStats.point3')}
-                        </li>
-                        <li className="mb-2">
-                          <IconTarget className="text-muted me-2" size={20} />
-                          {t('info.features.myStats.point4')}
-                        </li>
-                      </ul>
-                      <div className="alert alert-info mb-0">
-                        <div className="fw-bold mb-1">{t('info.features.myStats.benefitTitle')}</div>
-                        <div>{t('info.features.myStats.benefitDesc')}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              {/* Feature 4: Live Location */}
+              <AccordionItem value="location">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <MapPinIcon className="size-4 text-primary" />
+                    {t('info.features.liveLocation.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <ul className="flex flex-col gap-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.liveLocation.point1')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.liveLocation.point2')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.liveLocation.point3')}</span>
+                    </li>
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Feature 4: Live Location */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button collapsed"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseLocation"
-                      aria-expanded="false"
-                    >
-                      <IconMapPin className="me-2" size={20} />
-                      {t('info.features.liveLocation.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
-                  </div>
-                  <div
-                    id="collapseLocation"
-                    className="accordion-collapse collapse"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <ul className="list-unstyled mb-0">
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.liveLocation.point1')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.liveLocation.point2')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.liveLocation.point3')}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
+              {/* Feature 5: Profile Management */}
+              <AccordionItem value="profile">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <UserCogIcon className="size-4 text-primary" />
+                    {t('info.features.profile.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <ul className="flex flex-col gap-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.profile.point1')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.profile.point2')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.profile.point3')}</span>
+                    </li>
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Feature 5: Profile Management */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button collapsed"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseProfile"
-                      aria-expanded="false"
-                    >
-                      <IconUserCog className="me-2" size={20} />
-                      {t('info.features.profile.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
-                  </div>
-                  <div
-                    id="collapseProfile"
-                    className="accordion-collapse collapse"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <ul className="list-unstyled mb-0">
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.profile.point1')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.profile.point2')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.profile.point3')}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
+              {/* Feature 6: GPS Location (Non-PDS Users) */}
+              <AccordionItem value="gps">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <CrosshairIcon className="size-4 text-primary" />
+                    {t('info.features.gpsLocation.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <p className="text-muted-foreground">{t('info.features.gpsLocation.desc')}</p>
+                  <ul className="flex flex-col gap-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.gpsLocation.point1')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.gpsLocation.point2')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.gpsLocation.point3')}</span>
+                    </li>
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Feature 6: GPS Location (Non-PDS Users) */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button collapsed"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseGPS"
-                      aria-expanded="false"
-                    >
-                      <IconCurrentLocation className="me-2" size={20} />
-                      {t('info.features.gpsLocation.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
+              {/* Feature 7: Waypoints */}
+              <AccordionItem value="waypoints">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <MapPinIcon className="size-4 text-primary" />
+                    {t('info.features.waypoints.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <p className="text-muted-foreground">{t('info.features.waypoints.desc')}</p>
+
+                  <div>
+                    <h4 className="font-semibold">{t('info.features.waypoints.howToAddTitle')}</h4>
+                    <ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">
+                      <li>{t('info.features.waypoints.howToAddPoint1')}</li>
+                      <li>{t('info.features.waypoints.howToAddPoint2')}</li>
+                      <li>{t('info.features.waypoints.howToAddPoint3')}</li>
+                      <li>{t('info.features.waypoints.howToAddPoint4')}</li>
+                    </ul>
                   </div>
-                  <div
-                    id="collapseGPS"
-                    className="accordion-collapse collapse"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <div className="mb-3">
-                        <p className="text-secondary">{t('info.features.gpsLocation.desc')}</p>
-                      </div>
-                      <ul className="list-unstyled mb-0">
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.gpsLocation.point1')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.gpsLocation.point2')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.gpsLocation.point3')}
-                        </li>
-                      </ul>
-                    </div>
+
+                  <div>
+                    <h4 className="font-semibold">{t('info.features.waypoints.typesTitle')}</h4>
+                    <ul className="mt-1 flex flex-col gap-1.5">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
+                        <span>{t('info.features.waypoints.typePort')}</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
+                        <span>{t('info.features.waypoints.typeAnchorage')}</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
+                        <span>{t('info.features.waypoints.typeFishing')}</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2Icon className="size-4 shrink-0 text-primary" />
+                        <span>{t('info.features.waypoints.typeFavorite')}</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle2Icon className="size-4 shrink-0 text-muted-foreground" />
+                        <span>{t('info.features.waypoints.typeOther')}</span>
+                      </li>
+                    </ul>
                   </div>
-                </div>
 
-                {/* Feature 7: Waypoints */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button collapsed"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseWaypoints"
-                      aria-expanded="false"
-                    >
-                      <IconMapPin className="me-2" size={20} />
-                      {t('info.features.waypoints.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
+                  <div>
+                    <h4 className="font-semibold">{t('info.features.waypoints.manageTitle')}</h4>
+                    <ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-muted-foreground">
+                      <li>{t('info.features.waypoints.managePoint1')}</li>
+                      <li>{t('info.features.waypoints.managePoint2')}</li>
+                      <li>{t('info.features.waypoints.managePoint3')}</li>
+                    </ul>
                   </div>
-                  <div
-                    id="collapseWaypoints"
-                    className="accordion-collapse collapse"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <div className="mb-3">
-                        <p className="text-secondary">{t('info.features.waypoints.desc')}</p>
-                      </div>
 
-                      <div className="mb-3">
-                        <h4 className="h5">{t('info.features.waypoints.howToAddTitle')}</h4>
-                        <ul className="mb-2">
-                          <li>{t('info.features.waypoints.howToAddPoint1')}</li>
-                          <li>{t('info.features.waypoints.howToAddPoint2')}</li>
-                          <li>{t('info.features.waypoints.howToAddPoint3')}</li>
-                          <li>{t('info.features.waypoints.howToAddPoint4')}</li>
-                        </ul>
-                      </div>
+                  <Alert>
+                    <AlertTitle>{t('info.features.waypoints.privacyTitle')}</AlertTitle>
+                    <AlertDescription>{t('info.features.waypoints.privacyDesc')}</AlertDescription>
+                  </Alert>
+                </AccordionContent>
+              </AccordionItem>
 
-                      <div className="mb-3">
-                        <h4 className="h5">{t('info.features.waypoints.typesTitle')}</h4>
-                        <ul className="list-unstyled mb-2">
-                          <li className="mb-1">
-                            <IconCircleCheck className="text-primary me-2" size={16} />
-                            {t('info.features.waypoints.typePort')}
-                          </li>
-                          <li className="mb-1">
-                            <IconCircleCheck className="text-success me-2" size={16} />
-                            {t('info.features.waypoints.typeAnchorage')}
-                          </li>
-                          <li className="mb-1">
-                            <IconCircleCheck className="text-info me-2" size={16} />
-                            {t('info.features.waypoints.typeFishing')}
-                          </li>
-                          <li className="mb-1">
-                            <IconCircleCheck className="text-warning me-2" size={16} />
-                            {t('info.features.waypoints.typeFavorite')}
-                          </li>
-                          <li className="mb-1">
-                            <IconCircleCheck className="text-secondary me-2" size={16} />
-                            {t('info.features.waypoints.typeOther')}
-                          </li>
-                        </ul>
-                      </div>
-
-                      <div className="mb-3">
-                        <h4 className="h5">{t('info.features.waypoints.manageTitle')}</h4>
-                        <ul className="mb-2">
-                          <li>{t('info.features.waypoints.managePoint1')}</li>
-                          <li>{t('info.features.waypoints.managePoint2')}</li>
-                          <li>{t('info.features.waypoints.managePoint3')}</li>
-                        </ul>
-                      </div>
-
-                      <div className="alert alert-success mb-0">
-                        <div className="fw-bold mb-1">{t('info.features.waypoints.privacyTitle')}</div>
-                        <div>{t('info.features.waypoints.privacyDesc')}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Feature 8: Bathymetry */}
-                <div className="accordion-item">
-                  <div className="accordion-header">
-                    <button
-                      className="accordion-button collapsed"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#collapseBathymetry"
-                      aria-expanded="false"
-                    >
-                      <IconMathMaxMin className="me-2" size={20} />
-                      {t('info.features.bathymetry.title')}
-                      <div className="accordion-button-toggle">
-                        <IconChevronDown size={16} />
-                      </div>
-                    </button>
-                  </div>
-                  <div
-                    id="collapseBathymetry"
-                    className="accordion-collapse collapse"
-                    data-bs-parent="#featuresAccordion"
-                  >
-                    <div className="accordion-body pt-0">
-                      <div className="mb-3">
-                        <p className="text-secondary">{t('info.features.bathymetry.desc')}</p>
-                      </div>
-                      <ul className="list-unstyled mb-3">
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.bathymetry.point1')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.bathymetry.point2')}
-                        </li>
-                        <li className="mb-2">
-                          <IconCircleCheck className="text-muted me-2" size={20} />
-                          {t('info.features.bathymetry.point3')}
-                        </li>
-                      </ul>
-                      <div className="alert alert-info mb-0">
-                        <div className="fw-bold mb-1">{t('info.features.bathymetry.tipTitle')}</div>
-                        <div>{t('info.features.bathymetry.tipDesc')}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
-        </div>
+              {/* Feature 8: Bathymetry */}
+              <AccordionItem value="bathymetry">
+                <AccordionTrigger className="gap-2">
+                  <span className="flex items-center gap-2">
+                    <WavesIcon className="size-4 text-primary" />
+                    {t('info.features.bathymetry.title')}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="flex flex-col gap-3">
+                  <p className="text-muted-foreground">{t('info.features.bathymetry.desc')}</p>
+                  <ul className="flex flex-col gap-2">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.bathymetry.point1')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.bathymetry.point2')}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{t('info.features.bathymetry.point3')}</span>
+                    </li>
+                  </ul>
+                  <Alert>
+                    <AlertTitle>{t('info.features.bathymetry.tipTitle')}</AlertTitle>
+                    <AlertDescription>{t('info.features.bathymetry.tipDesc')}</AlertDescription>
+                  </Alert>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
 
         {/* Tips Section */}
-        <div className="col-12">
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title">
-                <IconBulb className="me-2" />
-                {t('info.tips.title')}
-              </h3>
-            </div>
-            <div className="card-body">
-              <div className="row g-3">
-                <div className="col-12 col-md-6">
-                  <div className="d-flex">
-                    <div className="me-3">
-                      <IconFish className="text-primary" size={24} />
-                    </div>
-                    <div>
-                      <h4 className="h5 mb-1">{t('info.tips.tip1Title')}</h4>
-                      <p className="text-secondary mb-0">{t('info.tips.tip1Desc')}</p>
-                    </div>
-                  </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LightbulbIcon className="size-5 text-primary" />
+              {t('info.tips.title')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="flex items-start gap-3">
+                <FishIcon className="mt-0.5 size-5 shrink-0 text-primary" />
+                <div className="flex flex-col gap-1">
+                  <h4 className="font-semibold">{t('info.tips.tip1Title')}</h4>
+                  <p className="text-sm text-muted-foreground">{t('info.tips.tip1Desc')}</p>
                 </div>
-                <div className="col-12 col-md-6">
-                  <div className="d-flex">
-                    <div className="me-3">
-                      <IconPhoto className="text-primary" size={24} />
-                    </div>
-                    <div>
-                      <h4 className="h5 mb-1">{t('info.tips.tip2Title')}</h4>
-                      <p className="text-secondary mb-0">{t('info.tips.tip2Desc')}</p>
-                    </div>
-                  </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <CameraIcon className="mt-0.5 size-5 shrink-0 text-primary" />
+                <div className="flex flex-col gap-1">
+                  <h4 className="font-semibold">{t('info.tips.tip2Title')}</h4>
+                  <p className="text-sm text-muted-foreground">{t('info.tips.tip2Desc')}</p>
                 </div>
-                <div className="col-12 col-md-6">
-                  <div className="d-flex">
-                    <div className="me-3">
-                      <IconClock className="text-primary" size={24} />
-                    </div>
-                    <div>
-                      <h4 className="h5 mb-1">{t('info.tips.tip3Title')}</h4>
-                      <p className="text-secondary mb-0">{t('info.tips.tip3Desc')}</p>
-                    </div>
-                  </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <ClockIcon className="mt-0.5 size-5 shrink-0 text-primary" />
+                <div className="flex flex-col gap-1">
+                  <h4 className="font-semibold">{t('info.tips.tip3Title')}</h4>
+                  <p className="text-sm text-muted-foreground">{t('info.tips.tip3Desc')}</p>
                 </div>
-                <div className="col-12 col-md-6">
-                  <div className="d-flex">
-                    <div className="me-3">
-                      <IconTrendingUp className="text-primary" size={24} />
-                    </div>
-                    <div>
-                      <h4 className="h5 mb-1">{t('info.tips.tip4Title')}</h4>
-                      <p className="text-secondary mb-0">{t('info.tips.tip4Desc')}</p>
-                    </div>
-                  </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <TrendingUpIcon className="mt-0.5 size-5 shrink-0 text-primary" />
+                <div className="flex flex-col gap-1">
+                  <h4 className="font-semibold">{t('info.tips.tip4Title')}</h4>
+                  <p className="text-sm text-muted-foreground">{t('info.tips.tip4Desc')}</p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Understanding Your Data */}
-        <div className="col-12">
-          <div className="card">
-            <div className="card-body">
-              <div className="d-flex align-items-center mb-3">
-                <IconTrendingUp size={32} className="text-primary me-2" />
-                <h3 className="mb-0">{t('info.understanding.title')}</h3>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUpIcon className="size-5 text-primary" />
+              {t('info.understanding.title')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <div className="font-semibold text-primary">
+                  {t('info.understanding.point1Title')}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('info.understanding.point1Desc')}
+                </p>
               </div>
-              <div className="row">
-                <div className="col-12 col-md-4 mb-3 mb-md-0">
-                  <div className="fw-bold text-primary mb-1">{t('info.understanding.point1Title')}</div>
-                  <div className="text-secondary small">{t('info.understanding.point1Desc')}</div>
+              <div className="flex flex-col gap-1">
+                <div className="font-semibold text-primary">
+                  {t('info.understanding.point2Title')}
                 </div>
-                <div className="col-12 col-md-4 mb-3 mb-md-0">
-                  <div className="fw-bold text-primary mb-1">{t('info.understanding.point2Title')}</div>
-                  <div className="text-secondary small">{t('info.understanding.point2Desc')}</div>
+                <p className="text-xs text-muted-foreground">
+                  {t('info.understanding.point2Desc')}
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="font-semibold text-primary">
+                  {t('info.understanding.point3Title')}
                 </div>
-                <div className="col-12 col-md-4">
-                  <div className="fw-bold text-primary mb-1">{t('info.understanding.point3Title')}</div>
-                  <div className="text-secondary small">{t('info.understanding.point3Desc')}</div>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('info.understanding.point3Desc')}
+                </p>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </MainLayout>
   );

@@ -1,3 +1,12 @@
+# tracks-explorer 3.0
+
+### Improvements
+- **Refreshed Interface**: Migrated the entire application from Tabler and Bootstrap to shadcn/ui (Base UI, Tailwind CSS v4, and Lucide icons) with light and dark theme support.
+- **Consistent Tracks and Refresh**: Trip points, live locations, trip distances, and vessel insights now load and refresh together from a single source, keeping the map and dashboard panels in sync.
+- **More Reliable Offline Catch Reports**: Replaced duplicate offline queues and service-worker sync with a single catch outbox that compresses photos safely, persists retry backoff, and never silently drops photos.
+- **Consistent Fisher Stats and Demo Mode**: Demo fisher stats and efficiency figures now derive deterministically from the frozen demo snapshot instead of random values, and community comparisons work for self-registered fishers.
+- **Hardened Backend and Dependencies**: Unified CORS, caller checks, and error handling across all serverless endpoints, and resolved all dependency security advisories.
+
 # tracks-explorer 2.12
 
 ### New Features

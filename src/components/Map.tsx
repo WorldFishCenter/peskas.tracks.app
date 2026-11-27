@@ -2,12 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Map, { type MapRef } from 'react-map-gl';
 import type { Map as MapboxMap } from 'mapbox-gl';
 import DeckGL from '@deck.gl/react';
-import { useAuth } from '../contexts/AuthContext';
-import { fetchTripPoints, getDateRangeForLastDays } from '../api/pelagicDataService';
+import { AlertTriangleIcon } from 'lucide-react';
+import { calculateCenterFromPoints } from '../api/pelagicDataService';
 import { MAP_STYLE, SHOW_ATTRIBUTION } from '../config/mapConfig';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { TripPoint, LiveLocation, ViewState, MobileTooltip, MapProps } from '../types';
-import { formatPointsForLayers, calculateCenterFromPoints } from '../utils/mapData';
+import { LiveLocation, ViewState, MobileTooltip, MapProps } from '../types';
 import { createMapLayers, type MapPickingInfo } from './map/MapLayers';
 import { createTooltipContent } from './map/MapTooltip';
 import MapControls from './map/MapControls';
@@ -17,28 +16,29 @@ import WaypointCrosshair from './map/WaypointCrosshair';
 import WaypointModeControls from './map/WaypointModeControls';
 import { useMobileDetection } from '../hooks/useMobileDetection';
 import { useTranslation } from 'react-i18next';
-import './map/MapStyles.css';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
 
 // Get Mapbox token from environment variables
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'YOUR_MAPBOX_TOKEN';
 
-// A usable Mapbox public token always starts with "pk.". Anything else (missing
-// var, leftover placeholder) would still mount a map that can never load a tile,
-// so we check up front and skip initialization entirely.
+// A usable Mapbox public token always starts with "pk.".
 const hasValidToken = MAPBOX_TOKEN.startsWith('pk.');
 
 const INITIAL_VIEW_STATE: ViewState = {
-  longitude: 39.61, // East Africa coast (Zanzibar area based on sample data)
+  longitude: 39.61,
   latitude: -4.4,
   zoom: 7,
   pitch: 40,
-  bearing: 0
+  bearing: 0,
 };
+
+const EMPTY_TRIP_BY_ID: Record<string, never[]> = {};
 
 const FishersMap: React.FC<MapProps> = ({
   onSelectVessel,
-  dateFrom,
-  dateTo,
+  tripPoints = [],
+  tripById = EMPTY_TRIP_BY_ID,
   selectedTripId,
   liveLocations = [],
   centerOnLiveLocations = false,
@@ -57,16 +57,10 @@ const FishersMap: React.FC<MapProps> = ({
   isWaypointSelectionMode = false,
   onCancelWaypointMode,
   onConfirmWaypointLocation,
-  centeredWaypoint
+  centeredWaypoint,
 }) => {
-  const { currentUser } = useAuth();
   const { t } = useTranslation();
-  const [tripPoints, setTripPoints] = useState<TripPoint[]>([]);
-  const [tripById, setTripById] = useState<Record<string, TripPoint[]>>({});
-  // Hover functionality can be added back if needed in the future
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
-  // Mapbox rejecting the token is otherwise silent: deck.gl keeps drawing
-  // overlays over an empty canvas. A missing token is known up front.
   const [tokenRejected, setTokenRejected] = useState(false);
   const basemapUnavailable = !hasValidToken || tokenRejected;
   const [showActivityGrid, setShowActivityGrid] = useState(false);
@@ -105,156 +99,85 @@ const FishersMap: React.FC<MapProps> = ({
   // 92px clears the two-line banner at its usual width.
   const noticeTop = basemapUnavailable ? '92px' : '10px';
 
-  // Mobile-friendly tooltip state
   const [mobileTooltip, setMobileTooltip] = useState<MobileTooltip | null>(null);
   const isMobile = useMobileDetection();
 
-  // Waypoint selection mode - track map center coordinates
   const [mapCenterCoordinates, setMapCenterCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Fetch trip points data for the current user (only if they have tracking device)
   useEffect(() => {
-    const loadTripPoints = async () => {
-      if (!currentUser) return;
+    if (tripPoints.length > 0 && !selectedTripId) {
+      const center = calculateCenterFromPoints(tripPoints);
+      setViewState((prevState) => ({
+        ...prevState,
+        latitude: center.latitude,
+        longitude: center.longitude,
+        zoom: 10,
+      }));
+    }
+  }, [tripPoints, selectedTripId]);
 
-      // Skip loading trip points for users without tracking devices
-      if (!hasTrackingDevice) {
-        console.log('User has no tracking device, skipping trip points load');
-        setTripPoints([]);
-        setTripById({});
-        return;
-      }
-
-      try {
-        // Always use the user's IMEIs, regardless of role
-        const imeis = currentUser.imeis;
-
-        // Use default date range if none provided (last 7 days)
-        const defaultDates = getDateRangeForLastDays(7);
-        const effectiveDateFrom = dateFrom || defaultDates.dateFrom;
-        const effectiveDateTo = dateTo || defaultDates.dateTo;
-
-        const points = await fetchTripPoints({
-          dateFrom: effectiveDateFrom,
-          dateTo: effectiveDateTo,
-          imeis,
-          includeDeviceInfo: true,
-          includeLastSeen: true
-        });
-
-        console.log(`Loaded ${points.length} trip points`);
-
-        setTripPoints(points);
-        const formatted = formatPointsForLayers(points);
-        setTripById(formatted);
-
-        // If we have points, adjust the view to focus on them
-        if (points.length > 0) {
-          const center = calculateCenterFromPoints(points);
-          setViewState(prevState => ({
-            ...prevState,
-            latitude: center.latitude,
-            longitude: center.longitude,
-            zoom: 10
-          }));
-        }
-      } catch (err) {
-        console.error('Error loading trip points:', err);
-      }
-    };
-
-    loadTripPoints();
-  }, [currentUser, dateFrom, dateTo, hasTrackingDevice]);
-
-  // When selectedTripId changes, focus the view on that trip
   useEffect(() => {
     if (selectedTripId && tripById[selectedTripId] && tripById[selectedTripId].length > 0) {
-      const tripPoints = tripById[selectedTripId];
-      const center = calculateCenterFromPoints(tripPoints);
-
-      // Set a higher zoom level for selected trips to see details better
-      const zoomLevel = 11;
+      const selectedPoints = tripById[selectedTripId];
+      const center = calculateCenterFromPoints(selectedPoints);
 
       setViewState({
         longitude: center.longitude,
         latitude: center.latitude,
-        zoom: zoomLevel,
+        zoom: 11,
         pitch: 40,
-        bearing: 0
+        bearing: 0,
       });
     }
   }, [selectedTripId, tripById]);
 
-  // Filter points based on selectedTripId
   const filteredTripById = selectedTripId
     ? { [selectedTripId]: tripById[selectedTripId] || [] }
     : tripById;
 
   const filteredTripPoints = selectedTripId
-    ? tripPoints.filter(p => p.tripId === selectedTripId)
+    ? tripPoints.filter((p) => p.tripId === selectedTripId)
     : tripPoints;
 
-  // Initialize waypoint coordinates when entering selection mode
   useEffect(() => {
     if (isWaypointSelectionMode) {
-      // Set initial coordinates from current viewState
       setMapCenterCoordinates({
         lat: viewState.latitude,
-        lng: viewState.longitude
+        lng: viewState.longitude,
       });
     } else {
       setMapCenterCoordinates(null);
     }
-    // Only run when mode changes, not when viewState changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWaypointSelectionMode]);
 
-  // Event handlers
-  // Hover handler for map layers
-  const handleHover = () => {
-    // Currently no-op, hover functionality can be added back if needed
-    // This prevents the reference error in createMapLayers
-  };
+  const handleHover = () => {};
 
   const handleClick = (info: MapPickingInfo) => {
-    // Don't process clicks in waypoint selection mode
-    if (isWaypointSelectionMode) {
-      return;
-    }
+    if (isWaypointSelectionMode) return;
 
-    // Handle mobile tooltips
     if (isMobile && info.object) {
-      // Show mobile tooltip on tap with a small delay to ensure stability
       setTimeout(() => {
         setMobileTooltip({
           object: info.object || null,
           x: info.x,
           y: info.y,
-          visible: true
+          visible: true,
         });
       }, 10);
-
     } else if (info.object && onSelectVessel) {
-      // Select vessel/trip when clicking on it
-      // Check if it's a LiveLocation or TripPoint and handle accordingly
       if ('imei' in info.object && 'lat' in info.object) {
-        // It's a LiveLocation
         onSelectVessel(info.object as LiveLocation);
       } else if ('_id' in info.object && 'coordinates' in info.object) {
-        // It's a Waypoint - don't select vessel, just show tooltip
-        // Do nothing here, tooltip will show
+        // Waypoint click handled by tooltip
       } else {
-        // It's a TripPoint - we can't pass it to onSelectVessel directly
-        // so pass null to clear selection
         onSelectVessel(null);
       }
     } else if (!info.object && onSelectVessel) {
-      // Clear selection when clicking on empty space
       onSelectVessel(null);
     }
   };
 
-  // Create layers
   const layers = createMapLayers({
     filteredTripPoints,
     filteredTripById,
@@ -264,62 +187,53 @@ const FishersMap: React.FC<MapProps> = ({
     deviceLocation,
     waypoints,
     onHover: handleHover,
-    onClick: handleClick
+    onClick: handleClick,
   });
 
-  // Function to center map on live locations
   const centerOnLiveLocationsHandler = useCallback(() => {
     if (liveLocations.length > 0) {
-      // Calculate center of all live locations
       const totalLat = liveLocations.reduce((sum, loc) => sum + loc.lat, 0);
       const totalLng = liveLocations.reduce((sum, loc) => sum + loc.lng, 0);
-      const avgLat = totalLat / liveLocations.length;
-      const avgLng = totalLng / liveLocations.length;
-      
       setViewState({
-        longitude: avgLng,
-        latitude: avgLat,
-        zoom: 12, // Closer zoom to see live locations clearly
+        longitude: totalLng / liveLocations.length,
+        latitude: totalLat / liveLocations.length,
+        zoom: 12,
         pitch: 40,
-        bearing: 0
+        bearing: 0,
       });
     }
   }, [liveLocations]);
 
-  // Center map on live locations when flag is true
   useEffect(() => {
     if (centerOnLiveLocations && liveLocations.length > 0) {
       centerOnLiveLocationsHandler();
     }
   }, [centerOnLiveLocations, liveLocations, centerOnLiveLocationsHandler]);
 
-  // Center map on device location when obtained (for non-PDS users)
   useEffect(() => {
     if (deviceLocation) {
       setViewState({
         longitude: deviceLocation.longitude,
         latitude: deviceLocation.latitude,
-        zoom: 11, // Same zoom as live locations
+        zoom: 11,
         pitch: 40,
-        bearing: 0
+        bearing: 0,
       });
     }
   }, [deviceLocation]);
 
-  // Center map on waypoint when requested
   useEffect(() => {
     if (centeredWaypoint) {
       setViewState({
         longitude: centeredWaypoint.lng,
         latitude: centeredWaypoint.lat,
-        zoom: 11, // Closer zoom to see waypoint clearly
+        zoom: 11,
         pitch: 40,
-        bearing: 0
+        bearing: 0,
       });
     }
   }, [centeredWaypoint]);
 
-  // Bathymetry layer management with vector tiles
   useEffect(() => {
     const map = mapInstance;
     if (!map || !map.isStyleLoaded()) return;
@@ -328,88 +242,70 @@ const FishersMap: React.FC<MapProps> = ({
     const lineLayerId = 'bathymetry-lines';
     const labelLayerId = 'bathymetry-labels';
 
-    // Abandon an in-flight GeoJSON fetch if this effect tears down first,
-    // otherwise the resumed closure mutates a map that now belongs elsewhere.
     const abortController = new AbortController();
 
     const addBathymetryLayers = async () => {
       if (showBathymetry) {
-        // Show loading indicator
         setBathymetryLoading(true);
 
         try {
-          // Add GeoJSON source if it doesn't exist
           if (!map.getSource(sourceId)) {
-            console.log('Loading bathymetry GeoJSON...');
-
-            // Use fetch with progress for better UX
             const response = await fetch('/bathymetry/bathymetry_contours_wio.geojson', {
-              signal: abortController.signal
+              signal: abortController.signal,
             });
             const data = await response.json();
 
-            // Re-check after awaiting: another mount may have added the source
-            // while this fetch was in flight, and addSource would throw.
             if (abortController.signal.aborted || map.getSource(sourceId)) return;
 
             map.addSource(sourceId, {
               type: 'geojson',
-              data: data,
-              // Performance optimizations
-              tolerance: 0.375, // Simplify geometry at lower zooms (default is 0.375)
-              buffer: 128 // Tile buffer for smooth panning
+              data,
+              tolerance: 0.375,
+              buffer: 128,
             });
           }
 
-          // Add line layer if it doesn't exist
           if (!map.getLayer(lineLayerId)) {
             map.addLayer({
               id: lineLayerId,
               type: 'line',
               source: sourceId,
-              // No source-layer needed for GeoJSON
               minzoom: 4,
-              maxzoom: 22, // Allow rendering at all zooms
+              maxzoom: 22,
               paint: {
                 'line-color': [
                   'interpolate',
                   ['linear'],
                   ['get', 'depth_m'],
-                  0, '#a6cee3',
-                  50, '#1f78b4',
-                  100, '#3182bd',
-                  200, '#08519c',
-                  500, '#54278f'
+                  0,
+                  '#a6cee3',
+                  50,
+                  '#1f78b4',
+                  100,
+                  '#3182bd',
+                  200,
+                  '#08519c',
+                  500,
+                  '#54278f',
                 ],
-                'line-width': [
-                  'match',
-                  ['get', 'depth_m'],
-                  [5, 10, 20, 50, 100, 200, 500], 2,
-                  1
-                ],
-                'line-opacity': 0.7
+                'line-width': ['match', ['get', 'depth_m'], [5, 10, 20, 50, 100, 200, 500], 2, 1],
+                'line-opacity': 0.7,
               },
               layout: {
                 'line-join': 'round',
-                'line-cap': 'round'
-              }
+                'line-cap': 'round',
+              },
             });
           }
 
-          // Add label layer for key depths
           if (!map.getLayer(labelLayerId)) {
             map.addLayer({
               id: labelLayerId,
               type: 'symbol',
               source: sourceId,
-              // No source-layer needed for GeoJSON
               minzoom: 8,
-              maxzoom: 22, // Allow rendering at all zooms
-              filter: [
-                'in',
-                ['get', 'depth_m'],
-                ['literal', [5, 10, 20, 50, 100, 200, 500]]
-              ],
+              maxzoom: 22,
+              filter: ['in', ['get', 'depth_m'], ['literal', [5, 10, 20, 50, 100, 200, 500]]],
               layout: {
                 'text-field': ['get', 'depth_label'],
                 'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
@@ -420,36 +316,27 @@ const FishersMap: React.FC<MapProps> = ({
                 'text-padding': 5,
                 'text-max-angle': 45,
                 'text-allow-overlap': false,
-                'text-ignore-placement': false
+                'text-ignore-placement': false,
               },
               paint: {
                 'text-color': '#08519c',
                 'text-halo-color': '#ffffff',
                 'text-halo-width': 2,
-                'text-halo-blur': 0.5
-              }
+                'text-halo-blur': 0.5,
+              },
             });
           }
         } catch (error) {
-          // An aborted fetch is an expected teardown, not a failure
           if ((error as Error)?.name !== 'AbortError') {
             console.error('Error adding bathymetry layers:', error);
           }
         } finally {
-          // Hide loading indicator
           setBathymetryLoading(false);
         }
       } else {
-        // Remove layers when toggled off (keep data cached)
-        if (map.getLayer(labelLayerId)) {
-          map.removeLayer(labelLayerId);
-        }
-        if (map.getLayer(lineLayerId)) {
-          map.removeLayer(lineLayerId);
-        }
-        if (map.getSource(sourceId)) {
-          map.removeSource(sourceId);
-        }
+        if (map.getLayer(labelLayerId)) map.removeLayer(labelLayerId);
+        if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
         setBathymetryLoading(false);
       }
     };
@@ -471,21 +358,13 @@ const FishersMap: React.FC<MapProps> = ({
   }, [showBathymetry, mapInstance]);
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      {/* Add Bootstrap icons CSS for tooltip icons */}
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" />
-
+    <div className="relative size-full">
       <DeckGL
         viewState={viewState}
         onViewStateChange={(evt) => {
-          // deck.gl's React wrapper holds back view state changes raised while
-          // it renders and replays them afterwards. When trip points arrive
-          // quickly — a cached response, or the demo's snapshot — that replay
-          // carries the view the map was created with and lands after we have
-          // centred on the points, sending the map back to the Zanzibar default.
-          // Every genuine change comes from an interaction or a transition and
-          // says so; the replay says neither.
-          const { isDragging, isPanning, isRotating, isZooming, inTransition } = evt.interactionState;
+          // Ignore DeckGL replay events that carry no interaction or transition flag.
+          const { isDragging, isPanning, isRotating, isZooming, inTransition } =
+            evt.interactionState;
           if (!isDragging && !isPanning && !isRotating && !isZooming && !inTransition) {
             return;
           }
@@ -496,14 +375,13 @@ const FishersMap: React.FC<MapProps> = ({
             latitude: newViewState.latitude,
             zoom: newViewState.zoom,
             pitch: newViewState.pitch || 0,
-            bearing: newViewState.bearing || 0
+            bearing: newViewState.bearing || 0,
           });
 
-          // Update waypoint coordinates in real-time when in selection mode
           if (isWaypointSelectionMode) {
             setMapCenterCoordinates({
               lat: newViewState.latitude,
-              lng: newViewState.longitude
+              lng: newViewState.longitude,
             });
           }
         }}
@@ -511,18 +389,18 @@ const FishersMap: React.FC<MapProps> = ({
           touchRotate: false,
           scrollZoom: true,
           doubleClickZoom: true,
-          keyboard: false
+          keyboard: false,
         }}
         layers={layers}
-        getTooltip={({object}) => {
+        getTooltip={({ object }) => {
           if (!object || isMobile) return null;
-          
+
           const tooltipContent = createTooltipContent({
             object,
             filteredTripById,
-            selectedTripId
+            selectedTripId,
           });
-          
+
           return tooltipContent ? { html: tooltipContent } : null;
         }}
       >
@@ -547,21 +425,14 @@ const FishersMap: React.FC<MapProps> = ({
 
       {/* Base map unavailable notice — overlays sit on an empty canvas otherwise */}
       {basemapUnavailable && (
-        <div
-          className="alert alert-warning m-0 shadow-sm"
-          style={{
-            position: 'absolute',
-            top: '10px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 100,
-            maxWidth: '90%'
-          }}
-        >
-          <div className="fw-bold">{t('map.basemapUnavailable')}</div>
-          <div className="small">
-            {hasValidToken ? t('map.basemapRejectedHint') : t('map.basemapTokenHint')}
-          </div>
+        <div className="absolute top-2.5 left-1/2 z-10 w-max max-w-[90%] -translate-x-1/2">
+          <Alert variant="destructive" className="bg-card/95 shadow-md backdrop-blur">
+            <AlertTriangleIcon />
+            <AlertTitle>{t('map.basemapUnavailable')}</AlertTitle>
+            <AlertDescription>
+              {hasValidToken ? t('map.basemapRejectedHint') : t('map.basemapTokenHint')}
+            </AlertDescription>
+          </Alert>
         </div>
       )}
 
@@ -590,53 +461,17 @@ const FishersMap: React.FC<MapProps> = ({
 
       {/* Bathymetry Loading Indicator */}
       {bathymetryLoading && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            padding: '20px 30px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '12px'
-          }}
-        >
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <div style={{ fontSize: '14px', color: '#495057', fontWeight: 500 }}>
-            Loading bathymetry data...
-          </div>
+        <div className="absolute top-1/2 left-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-3 rounded-xl border bg-card/95 px-6 py-4 shadow-md backdrop-blur">
+          <Spinner className="size-5 text-primary" />
+          <span className="text-sm font-medium text-foreground">Loading bathymetry data...</span>
         </div>
       )}
 
       {/* Waypoint Selection Mode UI */}
       {isWaypointSelectionMode && (
         <>
-          {/* Semi-transparent overlay to indicate mode */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(32, 107, 196, 0.05)',
-              pointerEvents: 'none',
-              zIndex: 5
-            }}
-          />
-
-          {/* Crosshair */}
+          <div className="pointer-events-none absolute inset-0 z-[5] bg-primary/5" />
           <WaypointCrosshair />
-
-          {/* Mode Controls */}
           <WaypointModeControls
             coordinates={mapCenterCoordinates}
             onCancel={onCancelWaypointMode || (() => {})}
@@ -649,67 +484,15 @@ const FishersMap: React.FC<MapProps> = ({
         </>
       )}
 
-      {/* No Trips Message - responsive positioning */}
+      {/* No Trips Message */}
       {hasTrackingDevice && showNoTripsMessage && (
-        <>
-          {/* Desktop: top center */}
-          <div 
-            className="card border-0 shadow-sm d-none d-md-block"
-            style={{
-              position: 'absolute',
-              top: noticeTop,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 100,
-              backgroundColor: 'rgba(var(--tblr-body-bg-rgb), 0.7)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: '8px',
-              maxWidth: '320px',
-              width: 'auto'
-            }}
-          >
-            <div 
-              className="card-body p-2 d-flex align-items-center gap-2"
-              style={{ fontSize: '0.875rem', whiteSpace: 'nowrap' }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-danger" style={{ flexShrink: 0 }}>
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M12 9v4" />
-                <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
-                <path d="M12 16h.01" />
-              </svg>
-              <span className="text-danger">{t('map.noTripsShort')}</span>
-            </div>
-          </div>
-
-          {/* Mobile: top left */}
-          <div 
-            className="card border-0 shadow-sm d-md-none"
-            style={{
-              position: 'absolute',
-              top: noticeTop,
-              left: '10px',
-              zIndex: 100,
-              backgroundColor: 'rgba(var(--tblr-body-bg-rgb), 0.7)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: '8px',
-              width: 'auto'
-            }}
-          >
-            <div 
-              className="card-body p-2 d-flex align-items-center gap-2"
-              style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" className="text-danger" style={{ flexShrink: 0 }}>
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M12 9v4" />
-                <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
-                <path d="M12 16h.01" />
-              </svg>
-              <span className="text-danger">{t('map.noTripsShort')}</span>
-            </div>
-          </div>
-        </>
+        <div
+          className="absolute left-2.5 z-10 flex items-center gap-2 rounded-lg border bg-card/85 px-3 py-1.5 text-xs font-medium text-destructive shadow-sm backdrop-blur md:left-1/2 md:-translate-x-1/2 md:text-sm"
+          style={{ top: noticeTop }}
+        >
+          <AlertTriangleIcon className="size-4 shrink-0" />
+          <span className="whitespace-nowrap">{t('map.noTripsShort')}</span>
+        </div>
       )}
 
       {/* Legend */}
@@ -728,4 +511,4 @@ const FishersMap: React.FC<MapProps> = ({
   );
 };
 
-export default FishersMap; 
+export default FishersMap;

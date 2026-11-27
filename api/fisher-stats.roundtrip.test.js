@@ -126,6 +126,24 @@ describe('comparing against the community', () => {
     // Everyone but the fisher: 40 + 0 + 100 over three trips.
     expect(result.body.comparison.avgCatch).toBeCloseTo(140 / 3, 5);
   });
+
+  it('resolves community comparisons for a self-registered fisher keyed by username', async () => {
+    await db.collection('users').insertOne({ username: 'asha', IMEI: null, Community: 'Fuji' });
+    await db.collection('fishers-stats').insertOne({
+      imei: 'asha',
+      date: day(2),
+      catch_kg: 12,
+      fishGroup: 'reef fish',
+    });
+
+    const result = await statsFor('asha', { compareWith: 'community' });
+
+    expect(result.status).toBe(200);
+    expect(result.body.comparison.hasData).toBe(true);
+    // Fuji peers with tracking devices: MINE (30kg / 4 trips) + NEIGHBOUR (40kg / 2 trips) = 70 / 6.
+    expect(result.body.comparison.avgCatch).toBeCloseTo(70 / 6, 5);
+    expect(result.body.comparison.basedOn).toBe('2 fishers in Fuji');
+  });
 });
 
 describe('refusing a bad request', () => {

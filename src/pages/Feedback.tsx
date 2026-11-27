@@ -2,45 +2,34 @@ import React, { useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { useTranslation } from 'react-i18next';
 import FeedbackForm from '../components/feedback/FeedbackForm';
+import { Card, CardContent } from '@/components/ui/card';
 
 const Feedback: React.FC = () => {
   const { t } = useTranslation();
   const [formKey, setFormKey] = useState(0);
 
   const handleSuccess = () => {
-    // Reset form by incrementing key to force re-mount
-    setFormKey(prev => prev + 1);
+    setFormKey((prev) => prev + 1);
   };
 
   const pageHeader = (
-    <div className="page-header d-print-none">
-      <div className="container-xl">
-        <h2 className="page-title mb-0 mt-0">
-          {t('feedback.title')}
-        </h2>
-        <div className="page-pretitle text-secondary">
-          {t('feedback.subtitle')}
-        </div>
+    <div className="border-b bg-background print:hidden">
+      <div className="mx-auto max-w-7xl px-4 py-4">
+        <h2 className="text-xl font-semibold tracking-tight">{t('feedback.title')}</h2>
+        <p className="text-sm text-muted-foreground">{t('feedback.subtitle')}</p>
       </div>
     </div>
   );
 
   return (
     <MainLayout pageHeader={pageHeader}>
-      <div className="card">
-        <div className="card-body">
+      <Card>
+        <CardContent className="pt-2">
           <FeedbackForm key={formKey} onSuccess={handleSuccess} />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </MainLayout>
   );
 };
 
 export default Feedback;
-
-
-
-
-
-
-

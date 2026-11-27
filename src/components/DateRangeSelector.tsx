@@ -1,8 +1,12 @@
-import React, { useEffect } from 'react';
-import DatePicker from 'react-datepicker';
+import React, { useEffect, useState } from 'react';
+import { format, isToday } from 'date-fns';
+import { CalendarIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import "react-datepicker/dist/react-datepicker.css";
-import "./date-range-selector.css";
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface DateRangeSelectorProps {
   dateFrom: Date;
@@ -13,151 +17,122 @@ interface DateRangeSelectorProps {
 const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
   dateFrom,
   dateTo,
-  onDateChange
+  onDateChange,
 }) => {
   const { t } = useTranslation();
-  // Calculate days difference for determining active preset
+  const [fromOpen, setFromOpen] = useState(false);
+  const [toOpen, setToOpen] = useState(false);
+
   const getDaysDifference = (): number => {
     return Math.round((dateTo.getTime() - dateFrom.getTime()) / (1000 * 60 * 60 * 24));
   };
-  
-  // Preset date range helpers
-  const handleDay = () => {
+
+  const applyDaysPreset = (days: number) => {
     const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    onDateChange(yesterday, today);
+    const from = new Date(today);
+    from.setDate(from.getDate() - days);
+    onDateChange(from, today);
   };
-  
-  const handleWeek = () => {
-    const today = new Date();
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    onDateChange(weekAgo, today);
-  };
-  
-  const handleMonth = () => {
-    const today = new Date();
-    const monthAgo = new Date(today);
-    monthAgo.setDate(monthAgo.getDate() - 30);
-    onDateChange(monthAgo, today);
-  };
-  
-  const handleThreeMonths = () => {
-    const today = new Date();
-    const threeMonthsAgo = new Date(today);
-    threeMonthsAgo.setDate(threeMonthsAgo.getDate() - 90);
-    onDateChange(threeMonthsAgo, today);
-  };
-  
+
   // Set week as default on first render
   useEffect(() => {
-    handleWeek();
-    // Only run on first render
+    applyDaysPreset(7);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Get days difference for active state
   const daysDiff = getDaysDifference();
-
-  // Handle date changes with null check
-  const handleFromDateChange = (date: Date | null) => {
-    if (date) {
-      onDateChange(date, dateTo);
-    }
-  };
-
-  const handleToDateChange = (date: Date | null) => {
-    if (date) {
-      onDateChange(dateFrom, date);
-    }
-  };
+  const activePreset =
+    isToday(dateTo) && [1, 7, 30, 90].includes(daysDiff) ? [String(daysDiff)] : [];
 
   return (
-    <div className="mb-1 date-range-selector">      
-      <div className="d-grid gap-1 mb-3">
-        <div className="row g-1">
-          <div className="col-6">
-            <button 
-              type="button" 
-              className={`btn w-100 ${daysDiff === 1 ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={handleDay}
-              style={{ minHeight: '36px' }}
+    <div className="flex flex-col gap-3">
+      <ToggleGroup
+        value={activePreset}
+        onValueChange={(values) => {
+          // Re-clicking an active preset resets the range to end today instead of deselecting.
+          const next = values[0] ?? activePreset[0];
+          if (next) applyDaysPreset(Number(next));
+        }}
+        variant="outline"
+        spacing={1}
+        className="grid w-full grid-cols-2"
+      >
+        <ToggleGroupItem value="1" className="h-9 w-full">
+          {t('dateRange.presets.today')}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="7" className="h-9 w-full">
+          {t('dateRange.presets.last7Days')}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="30" className="h-9 w-full">
+          {t('dateRange.presets.last30Days')}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="90" className="h-9 w-full">
+          {t('dateRange.presets.last90Days')}
+        </ToggleGroupItem>
+      </ToggleGroup>
+
+      <FieldGroup className="grid grid-cols-2 gap-2">
+        <Field className="gap-1">
+          <FieldLabel className="text-xs text-muted-foreground">
+            {t('dateRange.from')}
+          </FieldLabel>
+          <Popover open={fromOpen} onOpenChange={setFromOpen}>
+            <PopoverTrigger
+              render={
+                <Button variant="outline" className="w-full justify-start font-normal" />
+              }
             >
-              {t('dateRange.presets.today')}
-            </button>
-          </div>
-          <div className="col-6">
-            <button 
-              type="button" 
-              className={`btn w-100 ${daysDiff === 7 ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={handleWeek}
-              style={{ minHeight: '36px' }}
+              <CalendarIcon data-icon="inline-start" />
+              <span className="truncate">{format(dateFrom, 'MMM d')}</span>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                defaultMonth={dateFrom}
+                selected={dateFrom}
+                onSelect={(date) => {
+                  if (date) {
+                    onDateChange(date, dateTo);
+                    setFromOpen(false);
+                  }
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        </Field>
+
+        <Field className="gap-1">
+          <FieldLabel className="text-xs text-muted-foreground">
+            {t('dateRange.to')}
+          </FieldLabel>
+          <Popover open={toOpen} onOpenChange={setToOpen}>
+            <PopoverTrigger
+              render={
+                <Button variant="outline" className="w-full justify-start font-normal" />
+              }
             >
-              {t('dateRange.presets.last7Days')}
-            </button>
-          </div>
-        </div>
-        <div className="row g-1">
-          <div className="col-6">
-            <button 
-              type="button" 
-              className={`btn w-100 ${daysDiff === 30 ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={handleMonth}
-              style={{ minHeight: '36px' }}
-            >
-              {t('dateRange.presets.last30Days')}
-            </button>
-          </div>
-          <div className="col-6">
-            <button 
-              type="button" 
-              className={`btn w-100 ${daysDiff === 90 ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={handleThreeMonths}
-              style={{ minHeight: '36px' }}
-            >
-              {t('dateRange.presets.last90Days')}
-            </button>
-          </div>
-        </div>
-      </div>
-      <div className="row g-2 mb-2">
-        <div className="col-6">
-          <label className="form-label mb-1 small">{t('dateRange.from')}</label>
-          <DatePicker
-            selected={dateFrom}
-            onChange={handleFromDateChange}
-            selectsStart
-            startDate={dateFrom}
-            endDate={dateTo}
-            className="form-control"
-            dateFormat="MMM d"
-            showPopperArrow={false}
-            calendarClassName="shadow-sm"
-            popperClassName="date-picker-popper"
-            placeholderText="From date"
-          />
-        </div>
-        <div className="col-6">
-          <label className="form-label mb-1 small">{t('dateRange.to')}</label>
-          <DatePicker
-            selected={dateTo}
-            onChange={handleToDateChange}
-            selectsEnd
-            startDate={dateFrom}
-            endDate={dateTo}
-            minDate={dateFrom}
-            className="form-control"
-            dateFormat="MMM d"
-            showPopperArrow={false}
-            calendarClassName="shadow-sm"
-            popperClassName="date-picker-popper"
-            placeholderText="To date"
-          />
-        </div>
-      </div>
+              <CalendarIcon data-icon="inline-start" />
+              <span className="truncate">{format(dateTo, 'MMM d')}</span>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                defaultMonth={dateTo}
+                selected={dateTo}
+                onSelect={(date) => {
+                  if (date) {
+                    onDateChange(dateFrom, date);
+                    setToOpen(false);
+                  }
+                }}
+                disabled={{ before: dateFrom }}
+              />
+            </PopoverContent>
+          </Popover>
+        </Field>
+      </FieldGroup>
     </div>
   );
 };
 
-export default DateRangeSelector; 
+export default DateRangeSelector;

@@ -1,5 +1,4 @@
-import { identifyCaller } from './_utils/requireFisher.js';
-import { corsMiddleware } from './_utils/cors.js';
+import { createEndpoint, ValidationError, HttpError } from './_utils/endpoint.js';
 
 const PDS_API = 'https://analytics.pelagicdata.com/api';
 
@@ -59,20 +58,10 @@ async function pdsToken() {
  * The latest position PDS holds for each named vessel. The PDS login stays
  * here on the server; the browser never sees it.
  */
-export default async function handler(req, res) {
-  if (corsMiddleware(req, res)) {
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  await identifyCaller(req);
-
+export default createEndpoint({ methods: ['GET'], db: false }, async (req, res) => {
   const imeis = String(req.query.imeis ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   if (imeis.length === 0 || !imeis.every((imei) => /^\d+$/.test(imei))) {
-    return res.status(400).json({ error: 'imeis is required: IMEI numbers separated by commas' });
+    throw new ValidationError('imeis is required: IMEI numbers separated by commas');
   }
 
   let token;
@@ -80,7 +69,7 @@ export default async function handler(req, res) {
     token = await pdsToken();
   } catch (error) {
     console.error('[live-locations] no PDS login:', error.message);
-    return res.status(503).json({ error: 'Live locations are unavailable' });
+    throw new HttpError(503, 'Live locations are unavailable');
   }
 
   try {
@@ -100,7 +89,7 @@ export default async function handler(req, res) {
     }
     if (!response.ok) {
       console.error(`[live-locations] PDS devices answered ${response.status}`);
-      return res.status(502).json({ error: 'Live locations are unavailable' });
+      throw new HttpError(502, 'Live locations are unavailable');
     }
 
     const devices = await response.json();
@@ -108,7 +97,8 @@ export default async function handler(req, res) {
     const wanted = new Set(imeis);
     return res.status(200).json(devices.filter((device) => wanted.has(String(device.imei))));
   } catch (error) {
+    if (error instanceof HttpError) throw error;
     console.error('[live-locations] PDS devices failed:', error.message);
-    return res.status(502).json({ error: 'Live locations are unavailable' });
+    throw new HttpError(502, 'Live locations are unavailable');
   }
-}
+});

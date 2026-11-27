@@ -1,5 +1,4 @@
-import { identifyCaller } from './_utils/requireFisher.js';
-import { corsMiddleware } from './_utils/cors.js';
+import { createEndpoint, ValidationError, ForbiddenError, HttpError } from './_utils/endpoint.js';
 
 const PDS_API = 'https://analytics.pelagicdata.com/api';
 const DATE_RANGE = /^(trips|points)\/\d{4}-\d{2}-\d{2}\/\d{4}-\d{2}-\d{2}$/;
@@ -14,37 +13,27 @@ const FORWARDED = ['imeis', 'deviceInfo', 'withLastSeen', 'errant', 'tags'];
  * Pelagic's historical trips and points as CSV, streamed as PDS sends them.
  * The PDS token and secret stay here; the browser never sees them.
  */
-export default async function handler(req, res) {
-  if (corsMiddleware(req, res)) {
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const caller = await identifyCaller(req);
-
+export default createEndpoint({ methods: ['GET'], db: false }, async (req, res, { caller }) => {
   const path = String(req.query.path ?? '');
   const isDateRange = DATE_RANGE.test(path);
   if (!isDateRange && !TRIP_POINTS.test(path)) {
-    return res.status(400).json({ error: 'Unknown path' });
+    throw new ValidationError('Unknown path');
   }
 
   const imeis = req.query.imeis ? String(req.query.imeis) : '';
   if (imeis && !/^\d+(,\d+)*$/.test(imeis)) {
-    return res.status(400).json({ error: 'imeis must be IMEI numbers separated by commas' });
+    throw new ValidationError('imeis must be IMEI numbers separated by commas');
   }
 
   // Without an IMEI filter PDS answers for the whole fleet.
   if (isDateRange && !imeis && caller?.role !== 'admin') {
-    return res.status(403).json({ error: 'Only an administrator can ask for the whole fleet' });
+    throw new ForbiddenError('Only an administrator can ask for the whole fleet');
   }
 
   const { PDS_TOKEN, PDS_SECRET } = process.env;
   if (!PDS_TOKEN || !PDS_SECRET) {
     console.error('[pds-history] PDS_TOKEN or PDS_SECRET is not set');
-    return res.status(503).json({ error: 'Track data is unavailable' });
+    throw new HttpError(503, 'Track data is unavailable');
   }
 
   const query = new URLSearchParams();
@@ -79,7 +68,7 @@ export default async function handler(req, res) {
     if (res.headersSent) {
       res.end();
     } else {
-      res.status(502).json({ error: 'Track data is unavailable' });
+      throw new HttpError(502, 'Track data is unavailable');
     }
   }
-}
+});

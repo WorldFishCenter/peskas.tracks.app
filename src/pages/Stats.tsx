@@ -2,9 +2,12 @@ import React, { useState, Suspense, lazy } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { useTranslation } from 'react-i18next';
 import { subDays, differenceInDays } from 'date-fns';
-import { IconChartBar, IconGauge } from '@tabler/icons-react';
+import { BarChart3Icon, GaugeIcon } from 'lucide-react';
 import StatsControls from '../components/stats/StatsControls';
 import { formatDisplayDate } from '../utils/formatters';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const CatchesTab = lazy(() => import('../components/stats/CatchesTab'));
 const EfficiencyTab = lazy(() => import('../components/stats/EfficiencyTab'));
@@ -12,14 +15,9 @@ const EfficiencyTab = lazy(() => import('../components/stats/EfficiencyTab'));
 const Stats: React.FC = () => {
   const { t } = useTranslation();
 
-  // Active tab: 'catches' or 'efficiency'
   const [activeTab, setActiveTab] = useState<'catches' | 'efficiency'>('catches');
-
-  // Date range state (default: last 30 days)
   const [dateFrom, setDateFrom] = useState<Date>(subDays(new Date(), 30));
   const [dateTo, setDateTo] = useState<Date>(new Date());
-
-  // Comparison toggle state
   const [compareWith, setCompareWith] = useState<'community' | 'previous'>('community');
 
   const handleDateChange = (from: Date, to: Date) => {
@@ -31,91 +29,76 @@ const Stats: React.FC = () => {
     setCompareWith(comparison);
   };
 
-  // Create the page header
   const pageHeader = (
-    <div className="page-header d-print-none">
-      <div className="container-xl">
-        <div className="page-pretitle text-secondary fs-sm">
+    <div className="border-b bg-background print:hidden">
+      <div className="mx-auto max-w-7xl px-4 py-3">
+        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {t('dashboard.dateRange', {
             from: formatDisplayDate(dateFrom),
             to: formatDisplayDate(dateTo),
-            days: differenceInDays(dateTo, dateFrom) + 1
+            days: differenceInDays(dateTo, dateFrom) + 1,
           })}
         </div>
-        <h2 className="page-title mb-0 mt-0">{t('stats.title')}</h2>
+        <h2 className="text-xl font-semibold tracking-tight">{t('stats.title')}</h2>
       </div>
     </div>
   );
 
   return (
     <MainLayout pageHeader={pageHeader}>
-      {/* Stats Controls (Date Range & Comparison) */}
-      <StatsControls
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        compareWith={compareWith}
-        onDateChange={handleDateChange}
-        onCompareChange={handleCompareChange}
-      />
+      <div className="flex flex-col gap-4">
+        <StatsControls
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          compareWith={compareWith}
+          onDateChange={handleDateChange}
+          onCompareChange={handleCompareChange}
+        />
 
-      {/* Tabs Navigation */}
-      <div className="card mb-3">
-        <div className="card-header">
-          <ul className="nav nav-tabs card-header-tabs" role="tablist">
-            <li className="nav-item" role="presentation">
-              <button
-                className={`nav-link ${activeTab === 'catches' ? 'active' : ''}`}
-                onClick={() => setActiveTab('catches')}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'catches'}
-              >
-                <IconChartBar className="me-2" size={20} />
-                {t('stats.myCatches')}
-              </button>
-            </li>
-            <li className="nav-item" role="presentation">
-              <button
-                className={`nav-link ${activeTab === 'efficiency' ? 'active' : ''}`}
-                onClick={() => setActiveTab('efficiency')}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'efficiency'}
-              >
-                <IconGauge className="me-2" size={20} />
-                {t('stats.myEfficiency')}
-              </button>
-            </li>
-          </ul>
-        </div>
-
-        {/* Tab Content */}
-        <div className="card-body">
-          <Suspense
-            fallback={
-              <div className="text-center py-4">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">{t('common.loading')}</span>
-                </div>
-              </div>
-            }
+        <Card>
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as 'catches' | 'efficiency')}
           >
-            {activeTab === 'catches' && (
-              <CatchesTab
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                compareWith={compareWith}
-              />
-            )}
-            {activeTab === 'efficiency' && (
-              <EfficiencyTab
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                compareWith={compareWith}
-              />
-            )}
-          </Suspense>
-        </div>
+            <CardHeader className="border-b pb-3">
+              <TabsList>
+                <TabsTrigger value="catches">
+                  <BarChart3Icon />
+                  {t('stats.myCatches')}
+                </TabsTrigger>
+                <TabsTrigger value="efficiency">
+                  <GaugeIcon />
+                  {t('stats.myEfficiency')}
+                </TabsTrigger>
+              </TabsList>
+            </CardHeader>
+
+            <CardContent className="pt-4">
+              <Suspense
+                fallback={
+                  <div className="flex justify-center py-8">
+                    <Spinner className="size-6 text-primary" />
+                  </div>
+                }
+              >
+                <TabsContent value="catches">
+                  <CatchesTab
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    compareWith={compareWith}
+                  />
+                </TabsContent>
+                <TabsContent value="efficiency">
+                  <EfficiencyTab
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    compareWith={compareWith}
+                  />
+                </TabsContent>
+              </Suspense>
+            </CardContent>
+          </Tabs>
+        </Card>
       </div>
     </MainLayout>
   );

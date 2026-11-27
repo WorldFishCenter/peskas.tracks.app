@@ -13,7 +13,7 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.mapbox.com)",
       "WebFetch(domain:deck.gl)",
-      "WebFetch(domain:tabler.io)"
+      "WebFetch(domain:ui.shadcn.com)"
     ],
     "deny": [
       "Read(./.env)",

@@ -15,7 +15,6 @@ export const viridisColors: RGB[] = [
  * Get color based on speed using viridis palette
  */
 export const getColorForSpeed = (speed: number): RGB => {
-  // Cap speed at 20 km/h for color mapping
   const cappedSpeed = Math.min(speed || 0, 20);
   const index = Math.floor((cappedSpeed / 20) * (viridisColors.length - 1));
   return viridisColors[index];
@@ -25,12 +24,14 @@ export const getColorForSpeed = (speed: number): RGB => {
 export const petalPink: RGB = [214, 122, 196];
 
 /**
- * Get battery badge class based on battery state
+ * Get shadcn Badge variant based on battery state
  */
-export const getBatteryBadgeClass = (batteryState: string): string => {
-  if (batteryState.includes('Low')) return 'bg-warning text-dark';
-  if (batteryState.includes('Critical')) return 'bg-danger text-white';
-  return 'bg-success text-white';
+export const getBatteryBadgeVariant = (
+  batteryState: string
+): 'destructive' | 'outline' | 'secondary' => {
+  if (batteryState.includes('Critical')) return 'destructive';
+  if (batteryState.includes('Low')) return 'outline';
+  return 'secondary';
 };
 
 /**

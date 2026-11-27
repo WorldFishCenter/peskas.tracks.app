@@ -1,10 +1,42 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { IconDeviceMobile, IconLock, IconInfoCircle, IconAlertTriangle, IconCheck, IconUserPlus } from '@tabler/icons-react';
+import {
+  AlertTriangleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  InfoIcon,
+  LockIcon,
+  SmartphoneIcon,
+  UserPlusIcon,
+} from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 import { PeskasLogo } from '../components/PeskasLogo';
 import RegistrationModal from '../components/RegistrationModal';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldSeparator,
+} from '@/components/ui/field';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
+import { Spinner } from '@/components/ui/spinner';
 
 const Login: React.FC = () => {
   const [imei, setImei] = useState('');
@@ -16,28 +48,22 @@ const Login: React.FC = () => {
   const { t } = useTranslation();
   const { languages, currentLanguage, changeLanguage } = useLanguage();
 
-  const handleLanguageChange = (languageCode: string) => {
-    changeLanguage(languageCode);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Trim inputs to handle any accidental whitespace
+
     const trimmedImei = imei.trim();
     const trimmedPassword = password.trim();
-    
+
     if (!trimmedImei || !trimmedPassword) {
       setError(t('auth.enterBothFields'));
       return;
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       await login(trimmedImei, trimmedPassword);
-      // Login successful, navigation happens in the App component
     } catch (err) {
       setError(t('auth.invalidCredentials'));
       console.error('Login error:', err);
@@ -49,10 +75,9 @@ const Login: React.FC = () => {
   const handleDemoLogin = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       await loginDemo();
-      // Demo login successful, navigation happens in the App component
     } catch (err) {
       setError('Demo mode error');
       console.error('Demo login error:', err);
@@ -62,208 +87,183 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="page page-center">
-      <div className="container container-tight py-4">
-        <div className="text-center mb-4">
-          <h1 className="mb-0 d-flex justify-content-center">
-            <span className="peskas-lockup d-flex align-items-center gap-2">
+    <div className="flex min-h-svh flex-col items-center justify-center bg-background px-4 py-8">
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h1 className="m-0 flex justify-center">
+            <span className="peskas-lockup flex items-center gap-2">
               <PeskasLogo />
-              <span className="peskas-baseline fs-3 fw-medium lh-1 text-secondary">Tracks</span>
+              <span className="peskas-baseline text-2xl font-medium leading-none text-muted-foreground">
+                Tracks
+              </span>
             </span>
           </h1>
-          
-          {/* Language switcher below the title - mobile friendly */}
-          <div className="mt-3 d-flex justify-content-center">
-            <div className="dropdown">
-              <button 
-                className="btn btn-outline-secondary dropdown-toggle d-flex align-items-center"
-                type="button"
-                data-bs-toggle="dropdown"
-                aria-expanded="false"
-                title={t('language.selectLanguage')}
-                style={{ 
-                  fontSize: '1rem', 
-                  padding: '0.75rem 1rem',
-                  minWidth: '140px',
-                  height: '50px'
-                }}
-              >
-                <span className="me-2" style={{ fontSize: '1.2rem' }}>{currentLanguage.flag}</span>
-                <span className="small">{currentLanguage.name}</span>
-              </button>
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <small className="text-muted">{t('language.selectLanguage')}</small>
-                </div>
+
+          {/* Language switcher */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="min-w-36"
+                  title={t('language.selectLanguage')}
+                />
+              }
+            >
+              <span>{currentLanguage.flag}</span>
+              <span>{currentLanguage.name}</span>
+              <ChevronDownIcon data-icon="inline-end" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="min-w-44">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{t('language.selectLanguage')}</DropdownMenuLabel>
                 {languages.map((language) => (
-                  <button
+                  <DropdownMenuItem
                     key={language.code}
-                    className={`dropdown-item d-flex align-items-center ${
-                      currentLanguage.code === language.code ? 'active' : ''
-                    }`}
-                    onClick={() => handleLanguageChange(language.code)}
-                    type="button"
-                    style={{ minHeight: '44px' }}
+                    onClick={() => changeLanguage(language.code)}
+                    className="flex min-h-10 items-center gap-2"
                   >
-                    <span className="me-2 fs-5">{language.flag}</span>
-                    <span className="flex-grow-1">{language.name}</span>
+                    <span>{language.flag}</span>
+                    <span className="flex-1">{language.name}</span>
                     {currentLanguage.code === language.code && (
-                      <IconCheck size={16} className="text-primary" />
+                      <CheckIcon className="text-primary" />
                     )}
-                  </button>
+                  </DropdownMenuItem>
                 ))}
-              </div>
-            </div>
-          </div>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        <div className="card card-md">
-          <div className="card-body">
-            <h2 className="h2 text-center mb-4">{t('auth.loginTitle')}</h2>
-            
-            {/* <div className="alert alert-info mb-3" role="alert">
-              <div className="d-flex">
-                <div>
-                  <IconInfoCircle className="me-2" />
-                </div>
-                <div>
-                  {t('auth.loginInfo')}
-                </div>
-              </div>
-            </div> */}
-
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">{t('auth.loginTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
             {error && (
-              <>
-                <div className="alert alert-danger mb-3" role="alert">
-                  <div className="d-flex">
-                    <div>
-                      <IconAlertTriangle className="me-2" />
-                    </div>
-                    <div>
-                      {error}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="alert alert-warning mb-3" role="alert">
-                  <div className="d-flex">
-                    <div>
-                      <IconInfoCircle className="me-2" />
-                    </div>
-                                    <div>
-                  <strong>{t('auth.troubleshootingTitle')}</strong>
-                  <ul className="mt-1 mb-0">
-                    {(t('auth.troubleshootingTips', { returnObjects: true }) as string[]).map((tip: string, index: number) => (
-                      <li key={index}>{tip}</li>
-                    ))}
-                  </ul>
-                </div>
-                  </div>
-                </div>
-              </>
+              <div className="flex flex-col gap-3">
+                <Alert variant="destructive">
+                  <AlertTriangleIcon />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+
+                <Alert>
+                  <InfoIcon />
+                  <AlertTitle>{t('auth.troubleshootingTitle')}</AlertTitle>
+                  <AlertDescription>
+                    <ul className="mt-1 flex list-disc flex-col gap-1 pl-4">
+                      {(t('auth.troubleshootingTips', { returnObjects: true }) as string[]).map(
+                        (tip: string, index: number) => (
+                          <li key={index}>{tip}</li>
+                        )
+                      )}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              </div>
             )}
 
             <form onSubmit={handleSubmit}>
-              <div className="mb-3">
-                <label className="form-label">{t('auth.imeiOrBoatName')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconDeviceMobile size={18} stroke={1.5} />
-                  </span>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder={t('common.enterImeiOrBoatName')}
-                    value={imei}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setImei(e.target.value)}
-                    autoComplete="off"
-                    disabled={loading}
-                    required
-                  />
-                </div>
-                <div className="form-hint">
-                  {t('common.exampleImeiOrBoatName')}
-                </div>
-              </div>
-              
-              <div className="mb-3">
-                <label className="form-label">{t('auth.password')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconLock size={18} stroke={1.5} />
-                  </span>
-                  <input 
-                    type="password" 
-                    className="form-control" 
-                    placeholder={t('common.yourPassword')}
-                    value={password}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    disabled={loading}
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="form-footer">
-                <button 
-                  type="submit" 
-                  className="btn btn-primary w-100"
-                  disabled={loading}
-                  style={{ minHeight: '48px' }}
-                >
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="login-imei">{t('auth.imeiOrBoatName')}</FieldLabel>
+                  <InputGroup className="h-10">
+                    <InputGroupAddon>
+                      <SmartphoneIcon />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id="login-imei"
+                      type="text"
+                      placeholder={t('common.enterImeiOrBoatName')}
+                      value={imei}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setImei(e.target.value)}
+                      autoComplete="off"
+                      disabled={loading}
+                      required
+                    />
+                  </InputGroup>
+                  <FieldDescription>{t('common.exampleImeiOrBoatName')}</FieldDescription>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="login-password">{t('auth.password')}</FieldLabel>
+                  <InputGroup className="h-10">
+                    <InputGroupAddon>
+                      <LockIcon />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id="login-password"
+                      type="password"
+                      placeholder={t('common.yourPassword')}
+                      value={password}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setPassword(e.target.value)
+                      }
+                      autoComplete="current-password"
+                      disabled={loading}
+                      required
+                    />
+                  </InputGroup>
+                </Field>
+
+                <Button type="submit" size="lg" className="h-12 w-full" disabled={loading}>
                   {loading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      <Spinner data-icon="inline-start" />
                       {t('common.loading')}...
                     </>
-                  ) : t('auth.loginButton')}
-                </button>
-              </div>
+                  ) : (
+                    t('auth.loginButton')
+                  )}
+                </Button>
+              </FieldGroup>
             </form>
 
             {/* Demo Mode Section */}
-            <div className="mt-4">
-              <div className="hr-text">{t('common.or')}</div>
-              <div className="text-center">
-                <button
+            <div className="flex flex-col gap-3">
+              <FieldSeparator>{t('common.or')}</FieldSeparator>
+              <div className="flex flex-col items-center gap-2 text-center">
+                <Button
                   type="button"
-                  className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
+                  variant="outline"
+                  size="lg"
+                  className="h-12 w-full"
                   onClick={handleDemoLogin}
                   disabled={loading}
-                  style={{ minHeight: '48px' }}
                 >
-                  <IconDeviceMobile size={18} className="me-2" />
                   {loading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      <Spinner data-icon="inline-start" />
                       {t('common.loading')}...
                     </>
-                  ) : t('auth.tryDemoMode')}
-                </button>
-                <small className="text-muted mt-2 d-block">
-                  {t('auth.demoModeDescription')}
-                </small>
+                  ) : (
+                    <>
+                      <SmartphoneIcon data-icon="inline-start" />
+                      {t('auth.tryDemoMode')}
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground">{t('auth.demoModeDescription')}</p>
               </div>
             </div>
 
             {/* Registration Section */}
-            <div className="mt-3 text-center text-muted">
-              <button
+            <div className="text-center">
+              <Button
                 type="button"
-                className="btn btn-link link-primary p-0 align-baseline"
+                variant="link"
                 onClick={() => setShowRegistrationModal(true)}
                 disabled={loading}
               >
-                <IconUserPlus size={18} className="me-1" />
+                <UserPlusIcon data-icon="inline-start" />
                 {t('auth.registration.noAccount')}
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Registration Modal */}
       {showRegistrationModal && (
         <RegistrationModal
           onClose={() => setShowRegistrationModal(false)}
@@ -277,4 +277,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login; 
+export default Login;

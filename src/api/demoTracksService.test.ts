@@ -6,6 +6,8 @@ import {
   replayTripPoints,
   replayLiveLocation,
   replayWaypoints,
+  replayFisherStats,
+  replayFisherPerformance,
   type DemoSnapshot
 } from './demoTracksService';
 
@@ -111,6 +113,24 @@ describe('replaying the snapshot', () => {
     ]);
     // Their ids are what makes the waypoint service simulate edits to them.
     expect(waypoints.every(w => w._id?.startsWith('demo-waypoint-'))).toBe(true);
+  });
+
+  it('derives deterministic fisher stats and performance from the snapshot without randomness', () => {
+    const now = new Date('2026-09-17T12:00:00Z');
+    const from = new Date('2026-09-01T00:00:00Z');
+    const to = new Date('2026-09-18T00:00:00Z');
+
+    const statsA = replayFisherStats(snapshot, from, to, 'community', now);
+    const statsB = replayFisherStats(snapshot, from, to, 'community', now);
+    const perfA = replayFisherPerformance(snapshot, from, to, 'community', now);
+    const perfB = replayFisherPerformance(snapshot, from, to, 'community', now);
+
+    expect(statsA).toEqual(statsB);
+    expect(perfA).toEqual(perfB);
+    expect(statsA.summary.totalTrips).toBe(2);
+    expect(statsA.recentTrips.map(t => t.tripId)).toEqual(['demo-trip-2', 'demo-trip-1']);
+    expect(perfA.tripTypes.offshore.count).toBe(1);
+    expect(perfA.tripTypes.nearshore.count).toBe(1);
   });
 });
 

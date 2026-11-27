@@ -2,16 +2,44 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/httpClient';
 import {
-  IconUser,
-  IconLock,
-  IconMapPin,
-  IconShip,
-  IconTool,
-  IconAlertTriangle,
-  IconCheck,
-  IconInfoCircle,
-  IconPhone
-} from '@tabler/icons-react';
+  AlertTriangleIcon,
+  CheckCircle2Icon,
+  InfoIcon,
+  LockIcon,
+  PhoneIcon,
+  ShipIcon,
+  UserIcon,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 
 interface RegistrationModalProps {
   onClose: () => void;
@@ -36,10 +64,6 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Validation state
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-
-  // Predefined lists
   const countries = ['Tanzania', 'Zanzibar', 'Mozambique', 'Kenya'];
 
   const vesselTypes = [
@@ -53,7 +77,7 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
     { value: 'Flat Boat', labelKey: 'auth.registration.vesselOptions.flatBoat' },
     { value: 'Surf Board', labelKey: 'auth.registration.vesselOptions.surfBoard' },
     { value: 'Other', labelKey: 'auth.registration.vesselOptions.other' },
-    { value: 'Feet', labelKey: 'auth.registration.vesselOptions.feet' }
+    { value: 'Feet', labelKey: 'auth.registration.vesselOptions.feet' },
   ];
 
   const gearTypes = [
@@ -62,10 +86,24 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
     { value: 'Traps', labelKey: 'auth.registration.gearOptions.traps' },
     { value: 'Spears & Harpoons', labelKey: 'auth.registration.gearOptions.spearsAndHarpoons' },
     { value: 'Gleaning', labelKey: 'auth.registration.gearOptions.gleaning' },
-    { value: 'Other', labelKey: 'auth.registration.gearOptions.other' }
+    { value: 'Other', labelKey: 'auth.registration.gearOptions.other' },
   ];
 
-  // Field validation
+  const countryItems = [
+    { value: null, label: t('auth.registration.selectCountry') },
+    ...countries.map((c) => ({ value: c, label: c })),
+  ];
+
+  const vesselItems = [
+    { value: null, label: t('auth.registration.selectVesselType') },
+    ...vesselTypes.map(({ value, labelKey }) => ({ value, label: t(labelKey) })),
+  ];
+
+  const gearItems = [
+    { value: null, label: t('auth.registration.selectGearType') },
+    ...gearTypes.map(({ value, labelKey }) => ({ value, label: t(labelKey) })),
+  ];
+
   const isBoatNameRequired = vesselType !== 'Feet';
 
   const validateForm = () => {
@@ -84,17 +122,12 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
     return errors;
   };
 
-  const handleBlur = (field: string) => {
-    setTouched({ ...touched, [field]: true });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate all fields
     const validationErrors = validateForm();
     if (validationErrors.length > 0) {
-      setError(validationErrors[0]); // Show first error
+      setError(validationErrors[0]);
       return;
     }
 
@@ -126,12 +159,10 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
         return;
       }
 
-      // Success!
       setSuccess(true);
       setTimeout(() => {
         onSuccess();
       }, 2000);
-
     } catch (err) {
       console.error('Registration error:', err);
       setError(t('auth.registration.registrationFailed'));
@@ -140,163 +171,150 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
     }
   };
 
-  // Success screen
   if (success) {
     return (
-      <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content">
-            <div className="modal-body text-center py-5">
-              <div className="mb-3">
-                <IconCheck size={64} className="text-success" />
-              </div>
-              <h3 className="mb-3">{t('auth.registration.success')}</h3>
-              <p className="text-muted">{t('auth.registration.successMessage')}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Dialog open onOpenChange={(open) => { if (!open) onSuccess(); }}>
+        <DialogContent showCloseButton={false} className="sm:max-w-md">
+          <DialogHeader className="items-center py-6 text-center">
+            <CheckCircle2Icon className="mb-2 size-14 text-primary" />
+            <DialogTitle className="text-xl">{t('auth.registration.success')}</DialogTitle>
+            <DialogDescription>{t('auth.registration.successMessage')}</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     );
   }
 
   return (
-    <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h3 className="modal-title">{t('auth.registration.title')}</h3>
-            <button type="button" className="btn-close" onClick={onClose} disabled={loading}></button>
-          </div>
+    <Dialog open onOpenChange={(open) => { if (!open && !loading) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t('auth.registration.title')}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('auth.registration.info')}
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="modal-body">
-            <div className="alert alert-info mb-3" role="alert">
-              <div className="d-flex">
-                <div>
-                  <IconInfoCircle className="me-2" />
-                </div>
-                <div>
-                  {t('auth.registration.info')}
-                </div>
-              </div>
-            </div>
+        <div className="flex flex-col gap-4">
+          <Alert>
+            <InfoIcon />
+            <AlertDescription>{t('auth.registration.info')}</AlertDescription>
+          </Alert>
 
-            {error && (
-              <div className="alert alert-danger mb-3" role="alert">
-                <div className="d-flex">
-                  <div>
-                    <IconAlertTriangle className="me-2" />
-                  </div>
-                  <div>{error}</div>
-                </div>
-              </div>
-            )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangleIcon />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-            <form onSubmit={handleSubmit}>
+          <form id="registration-form" onSubmit={handleSubmit}>
+            <FieldGroup>
               {/* Username */}
-              <div className="mb-3">
-                <label className="form-label required">{t('auth.registration.username')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconUser size={18} stroke={1.5} />
-                  </span>
-                  <input
+              <Field>
+                <FieldLabel htmlFor="reg-username">
+                  {t('auth.registration.username')} *
+                </FieldLabel>
+                <InputGroup className="h-9">
+                  <InputGroupAddon>
+                    <UserIcon />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    id="reg-username"
                     type="text"
-                    className="form-control"
                     placeholder={t('auth.registration.usernamePlaceholder')}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    onBlur={() => handleBlur('username')}
                     disabled={loading}
                     required
                   />
-                </div>
-                <div className="form-hint">
-                  {t('auth.registration.usernameHint')}
-                </div>
-              </div>
+                </InputGroup>
+                <FieldDescription>{t('auth.registration.usernameHint')}</FieldDescription>
+              </Field>
 
               {/* Phone Number */}
-              <div className="mb-3">
-                <label className="form-label required">{t('auth.registration.phoneNumber')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconPhone size={18} stroke={1.5} />
-                  </span>
-                  <input
+              <Field>
+                <FieldLabel htmlFor="reg-phone">
+                  {t('auth.registration.phoneNumber')} *
+                </FieldLabel>
+                <InputGroup className="h-9">
+                  <InputGroupAddon>
+                    <PhoneIcon />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    id="reg-phone"
                     type="tel"
-                    className="form-control"
                     placeholder={t('auth.registration.phoneNumberPlaceholder')}
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    onBlur={() => handleBlur('phoneNumber')}
                     disabled={loading}
                     required
                   />
-                </div>
-                <div className="form-hint">
-                  {t('auth.registration.phoneNumberHint')}
-                </div>
-              </div>
+                </InputGroup>
+                <FieldDescription>{t('auth.registration.phoneNumberHint')}</FieldDescription>
+              </Field>
 
               {/* Country */}
-              <div className="mb-3">
-                <label className="form-label required">{t('auth.registration.country')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconMapPin size={18} stroke={1.5} />
-                  </span>
-                  <select
-                    className="form-select"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    onBlur={() => handleBlur('country')}
-                    disabled={loading}
-                    required
-                  >
-                    <option value="">{t('auth.registration.selectCountry')}</option>
-                    {countries.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <Field>
+                <FieldLabel>{t('auth.registration.country')} *</FieldLabel>
+                <Select
+                  items={countryItems}
+                  value={country || null}
+                  onValueChange={(v) => setCountry(v ?? '')}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {countries.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
 
               {/* Vessel Type */}
-              <div className="mb-3">
-                <label className="form-label required">{t('auth.registration.vesselType')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconShip size={18} stroke={1.5} />
-                  </span>
-                  <select
-                    className="form-select"
-                    value={vesselType}
-                    onChange={(e) => setVesselType(e.target.value)}
-                    onBlur={() => handleBlur('vesselType')}
-                    disabled={loading}
-                    required
-                  >
-                    <option value="">{t('auth.registration.selectVesselType')}</option>
-                    {vesselTypes.map(({ value, labelKey }) => (
-                      <option key={value} value={value}>{t(labelKey)}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <Field>
+                <FieldLabel>{t('auth.registration.vesselType')} *</FieldLabel>
+                <Select
+                  items={vesselItems}
+                  value={vesselType || null}
+                  onValueChange={(v) => setVesselType(v ?? '')}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {vesselTypes.map(({ value, labelKey }) => (
+                        <SelectItem key={value} value={value}>
+                          {t(labelKey)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-              {/* Boat Name */}
+              {/* Vessel Name */}
               {vesselType && (
-                <div className="mb-3">
-                  <label className={`form-label ${isBoatNameRequired ? 'required' : ''}`}>
-                    {t('auth.registration.boatName')}
-                  </label>
-                  <div className="input-group input-group-flat">
-                    <span className="input-group-text">
-                      <IconShip size={18} stroke={1.5} />
-                    </span>
-                    <input
+                <Field data-disabled={!isBoatNameRequired || undefined}>
+                  <FieldLabel htmlFor="reg-boat-name">
+                    {t('auth.registration.boatName')} {isBoatNameRequired ? '*' : ''}
+                  </FieldLabel>
+                  <InputGroup className="h-9">
+                    <InputGroupAddon>
+                      <ShipIcon />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id="reg-boat-name"
                       type="text"
-                      className="form-control"
                       placeholder={
                         isBoatNameRequired
                           ? t('auth.registration.boatNamePlaceholder')
@@ -304,113 +322,106 @@ const RegistrationModal: React.FC<RegistrationModalProps> = ({ onClose, onSucces
                       }
                       value={boatName}
                       onChange={(e) => setBoatName(e.target.value)}
-                      onBlur={() => handleBlur('boatName')}
                       disabled={loading || !isBoatNameRequired}
                       required={isBoatNameRequired}
                     />
-                  </div>
+                  </InputGroup>
                   {!isBoatNameRequired && (
-                    <div className="form-hint text-muted">
+                    <FieldDescription>
                       {t('auth.registration.boatNameNotRequired')}
-                    </div>
+                    </FieldDescription>
                   )}
-                </div>
+                </Field>
               )}
 
               {/* Main Gear Type */}
-              <div className="mb-3">
-                <label className="form-label required">{t('auth.registration.mainGearType')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconTool size={18} stroke={1.5} />
-                  </span>
-                  <select
-                    className="form-select"
-                    value={mainGearType}
-                    onChange={(e) => setMainGearType(e.target.value)}
-                    onBlur={() => handleBlur('mainGearType')}
-                    disabled={loading}
-                    required
-                  >
-                    <option value="">{t('auth.registration.selectGearType')}</option>
-                    {gearTypes.map(({ value, labelKey }) => (
-                      <option key={value} value={value}>{t(labelKey)}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <Field>
+                <FieldLabel>{t('auth.registration.mainGearType')} *</FieldLabel>
+                <Select
+                  items={gearItems}
+                  value={mainGearType || null}
+                  onValueChange={(v) => setMainGearType(v ?? '')}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {gearTypes.map(({ value, labelKey }) => (
+                        <SelectItem key={value} value={value}>
+                          {t(labelKey)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
 
               {/* Password */}
-              <div className="mb-3">
-                <label className="form-label required">{t('auth.registration.password')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconLock size={18} stroke={1.5} />
-                  </span>
-                  <input
+              <Field>
+                <FieldLabel htmlFor="reg-password">
+                  {t('auth.registration.password')} *
+                </FieldLabel>
+                <InputGroup className="h-9">
+                  <InputGroupAddon>
+                    <LockIcon />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    id="reg-password"
                     type="password"
-                    className="form-control"
                     placeholder={t('auth.registration.passwordPlaceholder')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    onBlur={() => handleBlur('password')}
                     disabled={loading}
                     required
                     minLength={6}
                   />
-                </div>
-                <div className="form-hint">
-                  {t('auth.registration.passwordHint')}
-                </div>
-              </div>
+                </InputGroup>
+                <FieldDescription>{t('auth.registration.passwordHint')}</FieldDescription>
+              </Field>
 
               {/* Confirm Password */}
-              <div className="mb-3">
-                <label className="form-label required">{t('auth.registration.confirmPassword')}</label>
-                <div className="input-group input-group-flat">
-                  <span className="input-group-text">
-                    <IconLock size={18} stroke={1.5} />
-                  </span>
-                  <input
+              <Field>
+                <FieldLabel htmlFor="reg-confirm-password">
+                  {t('auth.registration.confirmPassword')} *
+                </FieldLabel>
+                <InputGroup className="h-9">
+                  <InputGroupAddon>
+                    <LockIcon />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    id="reg-confirm-password"
                     type="password"
-                    className="form-control"
                     placeholder={t('auth.registration.confirmPasswordPlaceholder')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    onBlur={() => handleBlur('confirmPassword')}
                     disabled={loading}
                     required
                   />
-                </div>
-              </div>
-
-              <div className="modal-footer px-0 pb-0">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary"
-                  onClick={onClose}
-                  disabled={loading}
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      {t('common.loading')}...
-                    </>
-                  ) : t('auth.registration.registerButton')}
-                </button>
-              </div>
-            </form>
-          </div>
+                </InputGroup>
+              </Field>
+            </FieldGroup>
+          </form>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form="registration-form" disabled={loading}>
+            {loading ? (
+              <>
+                <Spinner data-icon="inline-start" />
+                {t('common.loading')}...
+              </>
+            ) : (
+              t('auth.registration.registerButton')
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
