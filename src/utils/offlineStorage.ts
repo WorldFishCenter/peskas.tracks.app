@@ -1,11 +1,16 @@
 import { MultipleCatchFormData, GPSCoordinate } from '../types';
 
+export type UploadStatus = 'pending' | 'uploading' | 'completed' | 'failed';
+
 interface PhotoRecord {
   id?: number;
   catchEntryId: string;
-  data: string;
-  gps?: GPSCoordinate;
+  base64Photo: string;
+  gpsCoordinate?: GPSCoordinate;
   timestamp: string;
+  retryCount?: number;
+  uploaded?: boolean;
+  uploadedAt?: string;
 }
 
 interface CatchRecord {
@@ -22,10 +27,12 @@ interface CatchRecord {
 interface UploadQueueItem {
   id?: number;
   type: 'photo' | 'catch';
-  data: MultipleCatchFormData;
+  itemId: number;
   priority: number;
+  status: UploadStatus;
+  retryCount: number;
+  nextRetryAt: string;
   createdAt: string;
-  attempts?: number;
 }
 
 // IndexedDB wrapper for offline photo and catch data storage
@@ -79,7 +86,7 @@ export class OfflineStorage {
     const transaction = this.db.transaction(['pendingPhotos'], 'readwrite');
     const store = transaction.objectStore('pendingPhotos');
     
-    const photoData = {
+    const photoData: PhotoRecord = {
       catchEntryId,
       base64Photo,
       gpsCoordinate,
@@ -214,7 +221,7 @@ export class OfflineStorage {
     const transaction = this.db.transaction(['uploadQueue'], 'readwrite');
     const store = transaction.objectStore('uploadQueue');
     
-    const queueItem = {
+    const queueItem: UploadQueueItem = {
       type,
       itemId,
       priority,
@@ -253,7 +260,7 @@ export class OfflineStorage {
     });
   }
 
-  async updateQueueItemStatus(queueId: number, status: 'pending' | 'uploading' | 'completed' | 'failed', error?: string): Promise<void> {
+  async updateQueueItemStatus(queueId: number, status: UploadStatus, error?: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     
     const transaction = this.db.transaction(['uploadQueue'], 'readwrite');
@@ -313,7 +320,7 @@ export class OfflineStorage {
     ]);
     
     return {
-      pendingPhotos: (photos as PhotoRecord[]).filter(p => !(p as any).uploaded).length,
+      pendingPhotos: (photos as PhotoRecord[]).filter(p => !p.uploaded).length,
       pendingCatches: (catches as CatchRecord[]).filter(c => !c.submitted).length,
       queuedUploads: queue.length
     };

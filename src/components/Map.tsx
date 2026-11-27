@@ -6,9 +6,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchTripPoints, getDateRangeForLastDays } from '../api/pelagicDataService';
 import { MAP_STYLE, SHOW_ATTRIBUTION } from '../config/mapConfig';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { TripPoint, LiveLocation, ViewState, MobileTooltip, MapProps, TripPath, Waypoint } from '../types';
+import { TripPoint, LiveLocation, ViewState, MobileTooltip, MapProps } from '../types';
 import { formatPointsForLayers, calculateCenterFromPoints } from '../utils/mapData';
-import { createMapLayers } from './map/MapLayers';
+import { createMapLayers, type MapPickingInfo } from './map/MapLayers';
 import { createTooltipContent } from './map/MapTooltip';
 import MapControls from './map/MapControls';
 import MapLegend from './map/MapLegend';
@@ -216,7 +216,7 @@ const FishersMap: React.FC<MapProps> = ({
     // This prevents the reference error in createMapLayers
   };
 
-  const handleClick = (info: { object?: TripPoint | LiveLocation | TripPath | Waypoint | undefined; x: number; y: number; coordinate?: [number, number]; }) => {
+  const handleClick = (info: MapPickingInfo) => {
     // Don't process clicks in waypoint selection mode
     if (isWaypointSelectionMode) {
       return;

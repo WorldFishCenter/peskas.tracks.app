@@ -38,12 +38,10 @@ const MapControls: React.FC<MapControlsProps> = ({
   onRefresh,
   isRefreshing = false,
   hasTrackingDevice = true,
-  deviceLocation,
   onGetMyLocation,
   isGettingLocation = false,
   onEnterWaypointMode,
   onToggleWaypoints,
-  waypointsCount = 0,
   isWaypointSelectionMode = false
 }) => {
   const { t } = useTranslation();

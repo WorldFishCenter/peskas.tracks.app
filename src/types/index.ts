@@ -139,7 +139,7 @@ export interface MobileTooltip {
 export interface TripPath {
   tripId: string;
   name: string;
-  path: number[][];
+  path: [number, number][];
   color: RGB;
   width: number;
 }
@@ -170,6 +170,7 @@ export interface VesselInsights {
 
 // Color types
 export type RGB = [number, number, number];
+export type RGBA = [number, number, number, number];
 
 // GPS coordinate types
 export interface GPSCoordinate {

@@ -1,8 +1,11 @@
 import { PathLayer, ScatterplotLayer, IconLayer } from '@deck.gl/layers';
 import { GridLayer } from '@deck.gl/aggregation-layers';
-import { TripPoint, LiveLocation, TripPath, GPSCoordinate, Waypoint } from '../../types';
+import type { PickingInfo } from '@deck.gl/core';
+import { TripPoint, LiveLocation, TripPath, GPSCoordinate, Waypoint, MobileTooltip } from '../../types';
 import { petalPink, viridisColorRange } from '../../utils/colors';
 import { getWaypointColor } from '../../utils/waypointConfig';
+
+export type MapPickingInfo = PickingInfo<NonNullable<MobileTooltip['object']>>;
 
 interface MapLayersProps {
   filteredTripPoints: TripPoint[];
@@ -12,8 +15,8 @@ interface MapLayersProps {
   liveLocations: LiveLocation[];
   deviceLocation?: GPSCoordinate | null;
   waypoints?: Waypoint[];
-  onHover: (info: { object?: TripPoint | LiveLocation | TripPath | Waypoint; x: number; y: number }) => void;
-  onClick: (info: { object?: TripPoint | LiveLocation | TripPath | Waypoint; x: number; y: number }) => void;
+  onHover: (info: MapPickingInfo) => void;
+  onClick: (info: MapPickingInfo) => void;
 }
 
 export const createMapLayers = ({
@@ -31,7 +34,7 @@ export const createMapLayers = ({
 
   // Always add the grid layer if activity view is enabled
   if (showActivityGrid) {
-    const gridLayer = new (GridLayer as any)({
+    const gridLayer = new GridLayer<TripPoint>({
       id: 'activity-grid',
       data: filteredTripPoints,
       pickable: true,
@@ -43,7 +46,6 @@ export const createMapLayers = ({
       getColorWeight: () => 1,  // Count of points represents activity
       getElevationWeight: () => 1,  // Count of points
       colorScaleType: 'quantize',
-      elevationScaleType: 'sqrt',
       // Viridis-inspired color range
       colorRange: viridisColorRange,
       // Material for 3D lighting
@@ -53,11 +55,12 @@ export const createMapLayers = ({
         shininess: 32,
         specularColor: [51, 51, 51]
       },
-      onHover,
-      onClick: onClick as any
+      // GridLayer's typings want a boolean back; false means not handled, as before.
+      onHover: info => { onHover(info); return false; },
+      onClick: info => { onClick(info); return false; }
     });
     
-    layers.push(gridLayer as any);
+    layers.push(gridLayer);
   }
 
   // Add trip paths and points layers if not showing only grid or if a specific trip is selected
@@ -65,7 +68,7 @@ export const createMapLayers = ({
     // Trip paths using PathLayer
     const pathLayer = new PathLayer({
       id: 'trip-paths',
-      data: Object.keys(filteredTripById).map(tripId => {
+      data: Object.keys(filteredTripById).map((tripId): TripPath | null => {
         const points = filteredTripById[tripId];
         if (!points || points.length < 2) return null;
 
@@ -77,15 +80,15 @@ export const createMapLayers = ({
           width: selectedTripId === tripId ? 4 : 2
         };
       }).filter((item): item is TripPath => item !== null),
-      getPath: (d: TripPath) => d.path as any,
-      getColor: (d: TripPath) => d.color as any,
+      getPath: (d: TripPath) => d.path,
+      getColor: (d: TripPath) => d.color,
       getWidth: (d: TripPath) => d.width,
       widthUnits: 'pixels',
       pickable: true,
       jointRounded: true,
       capRounded: true,
       onHover,
-      onClick: onClick as any
+      onClick
     });
     
     layers.push(pathLayer);

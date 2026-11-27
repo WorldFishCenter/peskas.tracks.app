@@ -5,7 +5,7 @@ import { isDemoMode } from '../utils/demoData';
 import { fetchDemoTripPoints, fetchDemoLiveLocations } from './demoTracksService';
 
 // Simple request cache to avoid repeated API calls with LRU eviction
-const requestCache = new Map<string, { data: any; timestamp: number; expiry: number }>();
+const requestCache = new Map<string, { data: unknown; timestamp: number; expiry: number }>();
 const MAX_CACHE_SIZE = 50; // Maximum cache entries to prevent memory leaks
 
 // Fleet-wide trip activity for the vessel picker; see fetchFleetTripActivity.
@@ -45,14 +45,14 @@ const getCacheKey = (dateFrom: Date, dateTo: Date, imeis?: string[], extra?: str
   return `${dateRange}:${imeiStr}${extra ? `:${extra}` : ''}`;
 };
 
-const getGenericCacheKey = (operation: string, params: any): string => {
+const getGenericCacheKey = (operation: string, params: unknown): string => {
   return `${operation}:${JSON.stringify(params || {})}`;
 };
 
-const getCachedData = (key: string): any | null => {
+const getCachedData = <T>(key: string): T | null => {
   const cached = requestCache.get(key);
   if (cached && Date.now() < cached.expiry) {
-    return cached.data;
+    return cached.data as T;
   }
   if (cached) {
     requestCache.delete(key);
@@ -60,7 +60,7 @@ const getCachedData = (key: string): any | null => {
   return null;
 };
 
-const setCachedData = (key: string, data: any, cacheDuration: number): void => {
+const setCachedData = (key: string, data: unknown, cacheDuration: number): void => {
   // Implement LRU eviction: remove oldest entry if cache is full
   if (requestCache.size >= MAX_CACHE_SIZE) {
     let oldestKey: string | null = null;
@@ -119,7 +119,7 @@ export const fetchTripsFromAPI = async (filter: TripsFilter): Promise<Trip[]> =>
 
   // Check cache first
   const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'trips');
-  const cachedData = getCachedData(cacheKey);
+  const cachedData = getCachedData<Trip[]>(cacheKey);
   if (cachedData) {
     return cachedData;
   }
@@ -502,7 +502,7 @@ export const fetchTripPoints = async (filter: PointsFilter): Promise<TripPoint[]
 
   // Check cache first
   const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'points');
-  const cachedData = getCachedData(cacheKey);
+  const cachedData = getCachedData<TripPoint[]>(cacheKey);
   if (cachedData) {
     return cachedData;
   }
@@ -655,7 +655,7 @@ const parsePointsCSV = (csv: string, imei?: string): TripPoint[] => {
         const values = line.split(',');
         
         // Create a point object using the mapped indices
-        const point: Partial<TripPoint> = {
+        const point: Partial<TripPoint> & Record<string, unknown> = {
           timestamp: '', // Will be set from time field below
           imei: imei || '' // Add IMEI from filter
         };
@@ -667,10 +667,10 @@ const parsePointsCSV = (csv: string, imei?: string): TripPoint[] => {
           
           if (['latitude', 'longitude', 'speed', 'heading', 'range'].includes(key)) {
             // Convert numeric fields
-            (point as any)[key] = parseFloat(value) || 0;
+            point[key] = parseFloat(value) || 0;
           } else {
             // String fields
-            (point as any)[key] = value;
+            point[key] = value;
           }
         });
         
@@ -756,7 +756,7 @@ export const fetchLiveLocations = async (imeis?: string[]): Promise<LiveLocation
   }
 
   const cacheKey = getGenericCacheKey('liveLocations', { imeis });
-  const cachedData = getCachedData(cacheKey);
+  const cachedData = getCachedData<LiveLocation[]>(cacheKey);
   if (cachedData) {
     console.log('📋 Using cached live locations data');
     return cachedData;

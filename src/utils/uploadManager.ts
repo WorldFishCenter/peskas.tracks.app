@@ -1,12 +1,12 @@
 import { submitMultipleCatchEvents } from '../api/catchEventsService';
 import { MultipleCatchFormData } from '../types';
-import { offlineStorage } from './offlineStorage';
+import { offlineStorage, type UploadStatus } from './offlineStorage';
 import i18n from '../i18n';
 
 export interface UploadProgress {
   id: string;
   type: 'photo' | 'catch';
-  status: 'pending' | 'uploading' | 'completed' | 'failed' | 'retrying';
+  status: UploadStatus | 'retrying';
   progress: number; // 0-100
   error?: string;
   retryCount: number;
@@ -14,6 +14,8 @@ export interface UploadProgress {
 }
 
 export type UploadProgressCallback = (progress: UploadProgress[]) => void;
+
+type CatchUpload = MultipleCatchFormData & { imei: string | null; username: string | null; offlineId?: number };
 
 export class UploadManager {
   private uploads: Map<string, UploadProgress> = new Map();
@@ -58,12 +60,12 @@ export class UploadManager {
   }
 
   // Add upload task
-  async addUpload(type: 'photo' | 'catch', data: any, priority: number = 1): Promise<string> {
-    const id = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async addUpload(data: CatchUpload, priority: number = 1): Promise<string> {
+    const id = `catch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const uploadProgress: UploadProgress = {
       id,
-      type,
+      type: 'catch',
       status: 'pending',
       progress: 0,
       retryCount: 0
@@ -73,17 +75,12 @@ export class UploadManager {
     
     try {
       // Store in IndexedDB for persistence
-      if (type === 'photo') {
-        const photoId = await offlineStorage.savePhoto(data.catchEntryId, data.base64Photo, data.gpsCoordinate);
-        await offlineStorage.addToUploadQueue('photo', photoId, priority);
-      } else if (type === 'catch') {
-        // If offlineId is provided, use it; otherwise create new entry
-        let catchId = data.offlineId;
-        if (!catchId) {
-          catchId = await offlineStorage.savePendingCatch(data, data.imei || null, data.username || null);
-        }
-        await offlineStorage.addToUploadQueue('catch', catchId, priority);
+      // If offlineId is provided, use it; otherwise create new entry
+      let catchId = data.offlineId;
+      if (!catchId) {
+        catchId = await offlineStorage.savePendingCatch(data, data.imei || null, data.username || null);
       }
+      await offlineStorage.addToUploadQueue('catch', catchId, priority);
     } catch (error) {
       console.error('Failed to store upload task offline:', error);
     }
@@ -105,7 +102,7 @@ export class UploadManager {
   }
 
   // Process individual upload
-  private async processUpload(uploadId: string, data: MultipleCatchFormData, isRetry: boolean = false) {
+  private async processUpload(uploadId: string, data: CatchUpload, isRetry: boolean = false) {
     const upload = this.uploads.get(uploadId);
     if (!upload) return;
 
@@ -137,14 +134,13 @@ export class UploadManager {
       }, 200);
 
       if (upload.type === 'catch') {
-        const formData = data as MultipleCatchFormData;
-        await submitMultipleCatchEvents(formData, (data as any).imei, (data as any).username);
+        await submitMultipleCatchEvents(data, data.imei, data.username);
         
         // CRITICAL: Mark as submitted in offline storage to prevent reprocessing
-        if ((data as any).offlineId) {
+        if (data.offlineId) {
           try {
-            await offlineStorage.markCatchSubmitted((data as any).offlineId);
-            console.log(`✅ Marked offline catch ${(data as any).offlineId} as submitted`);
+            await offlineStorage.markCatchSubmitted(data.offlineId);
+            console.log(`✅ Marked offline catch ${data.offlineId} as submitted`);
           } catch (error) {
             console.warn('Failed to mark catch as submitted:', error);
           }
@@ -195,7 +191,7 @@ export class UploadManager {
     return error.message || i18n.t('uploadManager.uploadFailedRetry');
   }
 
-  private scheduleRetry(uploadId: string, data: MultipleCatchFormData) {
+  private scheduleRetry(uploadId: string, data: CatchUpload) {
     const upload = this.uploads.get(uploadId);
     if (!upload) return;
 
@@ -290,12 +286,12 @@ export class UploadManager {
           }
         }
         
-        if ((queueItem as any).nextRetryAt && new Date() < new Date((queueItem as any).nextRetryAt)) {
+        if (queueItem.nextRetryAt && new Date() < new Date(queueItem.nextRetryAt)) {
           console.log(`⏰ Skipping queue item ${queueItem.id} - retry time not reached`);
           continue;
         }
 
-        let data;
+        let data: CatchUpload | undefined;
         if (queueItem.type === 'photo') {
           // Retrieve photo data from offline storage
           // This is simplified - would need proper implementation
@@ -303,7 +299,7 @@ export class UploadManager {
         } else if (queueItem.type === 'catch') {
           // Retrieve catch data from offline storage
           const catches = await offlineStorage.getPendingCatches();
-          const catchData = catches.find(c => c.id === (queueItem as any).itemId);
+          const catchData = catches.find(c => c.id === queueItem.itemId);
           
           // CRITICAL: Skip if already submitted or not found
           if (!catchData || catchData.submitted) {
@@ -319,7 +315,7 @@ export class UploadManager {
             imei: catchData.imei || null,
             username: catchData.username || null,
             offlineId: catchData.id // Include offline ID for marking as submitted
-          } as any;
+          };
         }
 
         const queueUploadId = `queue_${queueItem.id}`;
@@ -328,7 +324,7 @@ export class UploadManager {
           type: queueItem.type,
           status: 'pending',
           progress: 0,
-          retryCount: (queueItem as any).retryCount || 0
+          retryCount: queueItem.retryCount || 0
         };
 
         this.uploads.set(queueUploadId, uploadProgress);

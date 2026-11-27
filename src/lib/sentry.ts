@@ -225,20 +225,20 @@ export function startTransaction(name: string, op: string) {
 /**
  * Wrap async function with error boundary
  */
-export function withErrorBoundary<T extends (...args: any[]) => any>(
-  fn: T,
+export function withErrorBoundary<A extends unknown[], R>(
+  fn: (...args: A) => R,
   context?: string
-): T {
-  return ((...args: Parameters<T>) => {
+): (...args: A) => R {
+  return (...args: A) => {
     try {
       const result = fn(...args);
 
       // Handle promises
-      if (result && typeof result.catch === 'function') {
+      if (result instanceof Promise) {
         return result.catch((error: Error) => {
           captureException(error, { context, args });
           throw error;
-        });
+        }) as R;
       }
 
       return result;
@@ -246,5 +246,5 @@ export function withErrorBoundary<T extends (...args: any[]) => any>(
       captureException(error as Error, { context, args });
       throw error;
     }
-  }) as T;
+  };
 }

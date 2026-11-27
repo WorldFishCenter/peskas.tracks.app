@@ -230,7 +230,7 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
 
       // Add each optimized payload to upload queue
       for (const payload of optimizedPayloads) {
-        const id = await uploadManager.addUpload('catch', {
+        const id = await uploadManager.addUpload({
           ...payload,
           // Store imei and username separately based on user type
           imei: currentUser?.imeis?.[0] || null,

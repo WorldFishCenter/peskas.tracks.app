@@ -38,10 +38,6 @@ jobs:
   lint:
     runs-on: ubuntu-latest
 
-    # Advisory rather than blocking: 35 no-explicit-any errors predate this
-    # workflow. Make this job required once they are cleared.
-    continue-on-error: true
-
     steps:
       - uses: actions/checkout@v4
 

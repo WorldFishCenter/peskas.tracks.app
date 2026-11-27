@@ -1,4 +1,4 @@
-import { RGB } from '../types';
+import { RGB, RGBA } from '../types';
 
 // Viridis color palette (values from 0-255)
 export const viridisColors: RGB[] = [
@@ -36,7 +36,7 @@ export const getBatteryBadgeClass = (batteryState: string): string => {
 /**
  * Viridis color range for grid layers (with alpha)
  */
-export const viridisColorRange = [
+export const viridisColorRange: RGBA[] = [
   [131, 245, 229, 60],   // neon-ice (#83F5E5)
   [148, 220, 222, 90],   // pearl-aqua (#94DCDE)
   [164, 196, 216, 120],  // powder-blue (#A4C4D8)
