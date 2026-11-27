@@ -136,7 +136,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, pageHeader, stickyFoo
                 </Link>
               </h1>
               <span className="peskas-baseline flex items-center gap-1.5 leading-none">
-                <span className="text-xs text-muted-foreground">2.10</span>
+                <span className="text-xs text-muted-foreground">
+                  {__APP_VERSION__.replace(/\.0$/, '')}
+                </span>
                 {isDemoMode() && (
                   <Badge variant="outline">DEMO</Badge>
                 )}
