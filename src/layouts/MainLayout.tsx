@@ -1,273 +1,328 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { IconSun, IconMoon, IconLogout, IconShip, IconChartBar, IconMap, IconSettings, IconLanguage, IconCheck, IconInfoCircle, IconUser, IconMessageCircle } from '@tabler/icons-react';
+import {
+  BarChart3Icon,
+  CheckIcon,
+  InfoIcon,
+  LanguagesIcon,
+  LogOutIcon,
+  MapIcon,
+  MenuIcon,
+  MessageCircleIcon,
+  MoonIcon,
+  SettingsIcon,
+  ShipIcon,
+  SunIcon,
+  UserIcon,
+} from 'lucide-react';
+import { cn } from 'cn';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
+import { useTheme } from '@/components/theme-provider';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import BoatSelectionModal from '../components/BoatSelectionModal';
 import { anonymizeImei, anonymizeBoatName, isDemoMode } from '../utils/demoData';
 import { PeskasLogo, PeskasMark } from '../components/PeskasLogo';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 interface MainLayoutProps {
   children: React.ReactNode;
-  pageHeader?: React.ReactNode; // Optional header content
-  stickyFooter?: React.ReactNode; // Optional sticky footer content
+  pageHeader?: React.ReactNode;
+  stickyFooter?: React.ReactNode;
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, pageHeader, stickyFooter }) => {
   const { logout, currentUser, updateUserImeis } = useAuth();
   const { t } = useTranslation();
   const { languages, currentLanguage, changeLanguage } = useLanguage();
+  const { resolvedTheme, setTheme } = useTheme();
   const location = useLocation();
-  const [darkMode, setDarkMode] = useState(false);
   const [showBoatSelection, setShowBoatSelection] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Initialize dark mode from localStorage on component mount
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
+  const darkMode = resolvedTheme === 'dark';
 
-    // Set initial state based on saved preference or default to light mode
-    const isDarkMode = savedTheme === 'dark';
-    setDarkMode(isDarkMode);
-
-    // Apply theme to document
-    applyTheme(isDarkMode);
-  }, []);
-
-  // Toggle between light and dark mode
   const toggleDarkMode = () => {
-    const newDarkMode = !darkMode;
-    setDarkMode(newDarkMode);
-
-    // Save preference to localStorage
-    localStorage.setItem('theme', newDarkMode ? 'dark' : 'light');
-
-    // Apply theme to document
-    applyTheme(newDarkMode);
+    setTheme(darkMode ? 'light' : 'dark');
   };
 
-  // Apply theme to the document element
-  const applyTheme = (isDark: boolean) => {
-    document.documentElement.setAttribute('data-bs-theme', isDark ? 'dark' : 'light');
-  };
-
-  const handleLogout = () => {
-    logout();
-  };
+  const navItems = [
+    { to: '/', label: t('navigation.dashboard'), icon: MapIcon },
+    { to: '/stats', label: t('navigation.stats'), icon: BarChart3Icon },
+    { to: '/info', label: t('navigation.info'), icon: InfoIcon },
+  ];
 
   return (
-    <div className="page" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="flex min-h-svh flex-col bg-background text-foreground">
       {/* Main Navbar Header */}
-      <header className="navbar navbar-expand-md d-print-none">
-        <div className="container-xl">
-          {/* Hamburger menu button - mobile only */}
-          <button
-            className="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbar-menu"
-            aria-controls="navbar-menu"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
-          >
-            <span className="navbar-toggler-icon"></span>
-          </button>
+      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4">
+          <div className="flex items-center gap-3">
+            {/* Mobile navigation trigger */}
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden"
+                    aria-label="Toggle navigation"
+                  />
+                }
+              >
+                <MenuIcon />
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center gap-2">
+                    <span className="peskas-lockup flex items-center gap-2">
+                      <PeskasMark />
+                      <span>Tracks</span>
+                    </span>
+                  </SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col gap-1 px-4">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = location.pathname === item.to;
+                    return (
+                      <Button
+                        key={item.to}
+                        variant={active ? 'secondary' : 'ghost'}
+                        className="justify-start"
+                        render={<Link to={item.to} onClick={() => setMobileNavOpen(false)} />}
+                        nativeButton={false}
+                      >
+                        <Icon data-icon="inline-start" />
+                        {item.label}
+                      </Button>
+                    );
+                  })}
+                </nav>
+              </SheetContent>
+            </Sheet>
 
-          {/* The Peskas logo and the product name, one link home that reads "Peskas Tracks"; the version
-              and the demo flag follow on the same baseline. */}
-          <div className="navbar-brand peskas-responsive d-flex align-items-center">
-            <h1 className="m-0">
-              <Link to="/" className="peskas-lockup d-flex align-items-center gap-2 text-reset text-decoration-none">
-                <PeskasLogo className="peskas-logo" />
-                <PeskasMark className="peskas-mark" />
-                <span className="peskas-baseline fs-3 fw-medium lh-1 text-secondary">Tracks</span>
-              </Link>
-            </h1>
-            <span className="peskas-baseline fs-3 lh-1">
-              <span className="fs-5 text-secondary">2.10</span>
-              {isDemoMode() && <span className="fs-5 text-warning fw-bold ms-1">DEMO</span>}
-            </span>
-          </div>
-
-          <div className="navbar-nav flex-row order-md-last">
-            {/* Desktop only - Theme toggle */}
-            <div className="d-none d-md-flex">
-              <div className="nav-item">
-                <button
-                  className="nav-link px-0"
-                  onClick={toggleDarkMode}
-                  title={darkMode ? t('common.switchToLightMode') : t('common.switchToDarkMode')}
+            {/* Peskas logo + Tracks lockup */}
+            <div className="peskas-responsive flex items-center gap-1.5">
+              <h1 className="m-0">
+                <Link
+                  to="/"
+                  className="peskas-lockup flex items-center gap-2 text-foreground no-underline"
                 >
-                  {darkMode ? <IconSun size={24} /> : <IconMoon size={24} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Desktop only - Language switcher */}
-            <div className="d-none d-md-flex">
-              <LanguageSwitcher />
-            </div>
-
-            {/* Mobile only - Settings dropdown (theme + language) */}
-            <div className="nav-item dropdown d-md-none">
-              <a href="#" className="nav-link px-0" data-bs-toggle="dropdown" aria-label={t('navigation.settings')}>
-                <IconSettings size={24} />
-              </a>
-              <div className="dropdown-menu dropdown-menu-end">
-                <a href="#" className="dropdown-item d-flex align-items-center" onClick={(e) => { e.preventDefault(); toggleDarkMode(); }}>
-                  {darkMode ? <IconSun size={16} className="me-2" /> : <IconMoon size={16} className="me-2" />}
-                  <span className="flex-grow-1">{darkMode ? t('common.switchToLightMode') : t('common.switchToDarkMode')}</span>
-                </a>
-                <div className="dropdown-divider"></div>
-                <div className="dropdown-header">
-                  <IconLanguage size={16} className="me-2" />
-                  {t('language.selectLanguage')}
-                </div>
-                {languages.map((language) => (
-                  <a
-                    key={language.code}
-                    href="#"
-                    className={`dropdown-item d-flex align-items-center ${currentLanguage.code === language.code ? 'active' : ''
-                      }`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      changeLanguage(language.code);
-                    }}
-                  >
-                    <span className="me-2 fs-5">{language.flag}</span>
-                    <span className="flex-grow-1">{language.name}</span>
-                    {currentLanguage.code === language.code && (
-                      <IconCheck size={16} className="text-primary ms-auto" />
-                    )}
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            {/* User dropdown menu - always visible */}
-            <div className="nav-item dropdown">
-              <a href="#" className="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label={t('common.openUserMenu')}>
-                <span className="avatar avatar-sm">{currentUser?.name?.charAt(0).toUpperCase()}</span>
-                <div className="d-none d-xl-block ps-2">
-                  <div>{currentUser?.name && anonymizeBoatName(currentUser.name)}</div>
-                  {currentUser?.role && currentUser.role.toLowerCase() !== 'user' && (
-                    <div className="mt-1 small text-muted">{currentUser.role}</div>
-                  )}
-                </div>
-              </a>
-              <div className="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-                <div className="dropdown-header">
-                  {currentUser?.name && (
-                    <div className="fw-bold">{anonymizeBoatName(currentUser.name)}</div>
-                  )}
-                  {currentUser?.role && currentUser.role.toLowerCase() !== 'user' && (
-                    <div className="small text-muted">{currentUser.role}</div>
-                  )}
-                  {currentUser?.imeis && currentUser.imeis.length > 0 && (
-                    <div className="small text-muted mt-1">
-                      IMEI: {currentUser.imeis.map(imei => anonymizeImei(imei)).join(', ')}
-                    </div>
-                  )}
-                </div>
-
-                <Link to="/profile" className="dropdown-item">
-                  <IconUser size={16} className="me-2" />
-                  {t('navigation.profile')}
+                  <PeskasLogo className="peskas-logo" />
+                  <PeskasMark className="peskas-mark" />
+                  <span className="peskas-baseline text-lg font-medium leading-none text-muted-foreground">
+                    Tracks
+                  </span>
                 </Link>
-                <Link to="/feedback" className="dropdown-item">
-                  <IconMessageCircle size={16} className="me-2" />
-                  {t('navigation.feedback')}
-                </Link>
-                {currentUser?.role === 'admin' && (
-                  <a href="#" className="dropdown-item" onClick={() => setShowBoatSelection(true)}>
-                    <IconShip size={16} className="me-2" />
-                    {t('navigation.selectBoat')}
-                  </a>
+              </h1>
+              <span className="peskas-baseline flex items-center gap-1.5 leading-none">
+                <span className="text-xs text-muted-foreground">2.10</span>
+                {isDemoMode() && (
+                  <Badge variant="outline">DEMO</Badge>
                 )}
-                <div className="dropdown-divider"></div>
-                <a href="#" className="dropdown-item" onClick={handleLogout}>
-                  <IconLogout size={16} className="me-2" />
-                  {t('navigation.logout')}
-                </a>
-              </div>
+              </span>
             </div>
+
+            {/* Desktop navigation */}
+            <nav className="ml-4 hidden items-center gap-1 md:flex">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = location.pathname === item.to;
+                return (
+                  <Button
+                    key={item.to}
+                    variant={active ? 'secondary' : 'ghost'}
+                    size="sm"
+                    render={<Link to={item.to} />}
+                    nativeButton={false}
+                    className={cn(active && 'font-medium text-foreground')}
+                  >
+                    <Icon data-icon="inline-start" />
+                    {item.label}
+                  </Button>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Right side controls */}
+          <div className="flex items-center gap-1.5">
+            {/* Desktop theme toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex"
+              onClick={toggleDarkMode}
+              title={darkMode ? t('common.switchToLightMode') : t('common.switchToDarkMode')}
+              aria-label={darkMode ? t('common.switchToLightMode') : t('common.switchToDarkMode')}
+            >
+              {darkMode ? <SunIcon /> : <MoonIcon />}
+            </Button>
+
+            {/* Desktop language switcher */}
+            <LanguageSwitcher />
+
+            {/* Mobile settings dropdown (theme + language) */}
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('navigation.settings')}
+                    />
+                  }
+                >
+                  <SettingsIcon />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-48">
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={toggleDarkMode}>
+                      {darkMode ? <SunIcon /> : <MoonIcon />}
+                      <span className="flex-1">
+                        {darkMode ? t('common.switchToLightMode') : t('common.switchToDarkMode')}
+                      </span>
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="flex items-center gap-1.5">
+                      <LanguagesIcon className="size-3.5" />
+                      {t('language.selectLanguage')}
+                    </DropdownMenuLabel>
+                    {languages.map((language) => (
+                      <DropdownMenuItem
+                        key={language.code}
+                        onClick={() => changeLanguage(language.code)}
+                        className="flex items-center gap-2"
+                      >
+                        <span>{language.flag}</span>
+                        <span className="flex-1">{language.name}</span>
+                        {currentLanguage.code === language.code && (
+                          <CheckIcon className="text-primary" />
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* User dropdown menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    className="flex h-auto items-center gap-2 px-1.5 py-1"
+                    aria-label={t('common.openUserMenu')}
+                  />
+                }
+              >
+                <Avatar size="sm">
+                  <AvatarFallback>
+                    {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden text-left xl:block">
+                  <div className="text-sm font-medium leading-tight">
+                    {currentUser?.name && anonymizeBoatName(currentUser.name)}
+                  </div>
+                  {currentUser?.role && currentUser.role.toLowerCase() !== 'user' && (
+                    <div className="text-xs text-muted-foreground">{currentUser.role}</div>
+                  )}
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-52">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+                    {currentUser?.name && (
+                      <span className="font-semibold text-foreground">
+                        {anonymizeBoatName(currentUser.name)}
+                      </span>
+                    )}
+                    {currentUser?.role && currentUser.role.toLowerCase() !== 'user' && (
+                      <span className="text-xs text-muted-foreground">{currentUser.role}</span>
+                    )}
+                    {currentUser?.imeis && currentUser.imeis.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        IMEI: {currentUser.imeis.map((imei) => anonymizeImei(imei)).join(', ')}
+                      </span>
+                    )}
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem render={<Link to="/profile" />}>
+                    <UserIcon />
+                    {t('navigation.profile')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem render={<Link to="/feedback" />}>
+                    <MessageCircleIcon />
+                    {t('navigation.feedback')}
+                  </DropdownMenuItem>
+                  {currentUser?.role === 'admin' && (
+                    <DropdownMenuItem onClick={() => setShowBoatSelection(true)}>
+                      <ShipIcon />
+                      {t('navigation.selectBoat')}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem variant="destructive" onClick={logout}>
+                    <LogOutIcon />
+                    {t('navigation.logout')}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
 
-      {/* Collapsible Navigation Menu - Separate Header */}
-      <header className="navbar-expand-md">
-        <div className="collapse navbar-collapse" id="navbar-menu">
-          <div className="navbar">
-            <div className="container-xl">
-              <ul className="navbar-nav">
-                <li className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}>
-                  <Link to="/" className="nav-link">
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconMap size={24} />
-                    </span>
-                    <span className="nav-link-title">{t('navigation.dashboard')}</span>
-                  </Link>
-                </li>
-                <li className={`nav-item ${location.pathname === '/stats' ? 'active' : ''}`}>
-                  <Link to="/stats" className="nav-link">
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconChartBar size={24} />
-                    </span>
-                    <span className="nav-link-title">{t('navigation.stats')}</span>
-                  </Link>
-                </li>
-                <li className={`nav-item ${location.pathname === '/info' ? 'active' : ''}`}>
-                  <Link to="/info" className="nav-link">
-                    <span className="nav-link-icon d-md-none d-lg-inline-block">
-                      <IconInfoCircle size={24} />
-                    </span>
-                    <span className="nav-link-title">{t('navigation.info')}</span>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="page-wrapper mt-0" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Page header with no extra padding */}
+      {/* Main content area */}
+      <div className="flex flex-1 flex-col">
         {pageHeader}
 
-        {/* Main content with no extra padding */}
-        <div className="page-body pt-0" style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          paddingBottom: stickyFooter ? '8px' : '0',
-          overflowY: 'auto', // Enable scrolling for content that exceeds viewport
-          WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
-        }}>
-          <div className="container-xl" style={{ flex: 1 }}>
-            {children}
-          </div>
-        </div>
+        <main
+          className={cn(
+            'mx-auto w-full max-w-7xl flex-1 px-4 py-3',
+            stickyFooter && 'pb-20 md:pb-4'
+          )}
+        >
+          {children}
+        </main>
       </div>
 
-      {/* Sticky Footer */}
+      {/* Sticky Footer (mobile) */}
       {stickyFooter && (
-        <div className="sticky-footer bg-body border-top shadow-lg d-print-none"
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 1030,
-            backdropFilter: 'blur(10px)'
-          }}
-        >
-          <div className="container-xl py-1">
-            {stickyFooter}
-          </div>
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85 print:hidden md:hidden">
+          <div className="mx-auto max-w-7xl px-4 py-2">{stickyFooter}</div>
         </div>
       )}
+
       {showBoatSelection && (
         <BoatSelectionModal
           onSelect={(imei) => {
@@ -281,4 +336,4 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, pageHeader, stickyFoo
   );
 };
 
-export default MainLayout; 
+export default MainLayout;

@@ -1,8 +1,26 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconAlertTriangle, IconCheck } from '@tabler/icons-react';
+import { AlertTriangleIcon, CheckIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { submitFeedback, FeedbackSubmission } from '../../api/feedbackService';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Spinner } from '@/components/ui/spinner';
 
 interface FeedbackFormProps {
   onSuccess?: () => void;
@@ -17,13 +35,17 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSuccess }) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Simple unified feedback types
   const feedbackTypes = [
     { value: 'opinion', labelKey: 'feedback.types.opinion' },
     { value: 'problem', labelKey: 'feedback.types.problem' },
     { value: 'suggestion', labelKey: 'feedback.types.suggestion' },
     { value: 'question', labelKey: 'feedback.types.question' },
-    { value: 'other', labelKey: 'feedback.types.other' }
+    { value: 'other', labelKey: 'feedback.types.other' },
+  ];
+
+  const feedbackItems = [
+    { value: null, label: t('feedback.form.selectType') },
+    ...feedbackTypes.map((opt) => ({ value: opt.value, label: t(opt.labelKey) })),
   ];
 
   const maxMessageLength = 2000;
@@ -32,7 +54,6 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSuccess }) => {
     e.preventDefault();
     setError(null);
 
-    // Validation - only type and message required
     if (!type) {
       setError(t('feedback.form.typeRequired'));
       return;
@@ -48,7 +69,6 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSuccess }) => {
       return;
     }
 
-    // Get user identifier
     const imei = currentUser?.imeis?.[0] || null;
     const username = currentUser?.username || null;
 
@@ -62,18 +82,15 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSuccess }) => {
     try {
       const feedbackData: FeedbackSubmission = {
         type,
-        message: message.trim()
+        message: message.trim(),
       };
 
       await submitFeedback(feedbackData, imei, username);
 
       setSuccess(true);
-
-      // Reset form
       setType('');
       setMessage('');
 
-      // Call success callback if provided
       if (onSuccess) {
         setTimeout(() => {
           onSuccess();
@@ -87,103 +104,79 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSuccess }) => {
     }
   };
 
-  // Success screen
   if (success) {
     return (
-      <div className="alert alert-success" role="alert">
-        <div className="d-flex">
-          <div>
-            <IconCheck className="me-2" />
-          </div>
-          <div>
-            <h4 className="alert-title">{t('feedback.form.success')}</h4>
-            <div className="text-secondary">{t('feedback.form.successMessage')}</div>
-          </div>
-        </div>
-      </div>
+      <Alert>
+        <CheckIcon className="text-primary" />
+        <AlertTitle>{t('feedback.form.success')}</AlertTitle>
+        <AlertDescription>{t('feedback.form.successMessage')}</AlertDescription>
+      </Alert>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {error && (
-        <div className="alert alert-danger mb-3" role="alert">
-          <div className="d-flex">
-            <div>
-              <IconAlertTriangle className="me-2" />
-            </div>
-            <div>{error}</div>
-          </div>
-        </div>
+        <Alert variant="destructive">
+          <AlertTriangleIcon />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      {/* Type Selection */}
-      <div className="mb-3">
-        <label className="form-label required">
-          {t('feedback.form.type')}
-        </label>
-        <select
-          className="form-select"
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          disabled={loading}
-          required
-        >
-          <option value="">{t('feedback.form.selectType')}</option>
-          {feedbackTypes.map((typeOption) => (
-            <option key={typeOption.value} value={typeOption.value}>
-              {t(typeOption.labelKey)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <FieldGroup>
+        <Field>
+          <FieldLabel>{t('feedback.form.type')} *</FieldLabel>
+          <Select
+            items={feedbackItems}
+            value={type || null}
+            onValueChange={(v) => setType(v ?? '')}
+            disabled={loading}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {feedbackTypes.map((typeOption) => (
+                  <SelectItem key={typeOption.value} value={typeOption.value}>
+                    {t(typeOption.labelKey)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Field>
 
-      {/* Message */}
-      <div className="mb-3">
-        <label className="form-label required">
-          {t('feedback.form.message')}
-        </label>
-        <textarea
-          className="form-control"
-          rows={6}
-          placeholder={t('feedback.form.messagePlaceholder')}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          disabled={loading}
-          maxLength={maxMessageLength}
-          required
-        />
-        <div className="form-hint">
-          {maxMessageLength - message.length} {t('feedback.form.charactersRemaining')}
-        </div>
-      </div>
+        <Field>
+          <FieldLabel htmlFor="feedback-message">{t('feedback.form.message')} *</FieldLabel>
+          <Textarea
+            id="feedback-message"
+            rows={6}
+            placeholder={t('feedback.form.messagePlaceholder')}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={loading}
+            maxLength={maxMessageLength}
+            required
+          />
+          <FieldDescription>
+            {maxMessageLength - message.length} {t('feedback.form.charactersRemaining')}
+          </FieldDescription>
+        </Field>
 
-      {/* Submit Button */}
-      <div className="form-footer">
-        <button
-          type="submit"
-          className="btn btn-primary w-100"
-          disabled={loading}
-        >
+        <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading ? (
             <>
-              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              <Spinner data-icon="inline-start" />
               {t('feedback.form.submitting')}
             </>
           ) : (
             t('feedback.form.submit')
           )}
-        </button>
-      </div>
+        </Button>
+      </FieldGroup>
     </form>
   );
 };
 
 export default FeedbackForm;
-
-
-
-
-
-
-

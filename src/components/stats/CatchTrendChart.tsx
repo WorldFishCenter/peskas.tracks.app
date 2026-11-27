@@ -12,10 +12,11 @@ import {
   PointElement,
   Tooltip,
   ChartConfiguration,
-  ChartDataset
+  ChartDataset,
 } from 'chart.js';
+import { useTheme } from '@/components/theme-provider';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-// Register Chart.js components
 Chart.register(
   CategoryScale,
   LinearScale,
@@ -28,7 +29,7 @@ Chart.register(
 );
 
 interface TimeSeriesPoint {
-  date: string; // ISO date string YYYY-MM-DD
+  date: string;
   catch_kg: number;
 }
 
@@ -36,51 +37,54 @@ interface CatchTrendChartProps {
   data: TimeSeriesPoint[];
   comparisonAvg?: number;
   comparisonType?: 'community' | 'previous';
-  comparisonLabel?: string; // For previous period, this will be the date range
-  comparisonHasData?: boolean; // Indicates if comparison has data
+  comparisonLabel?: string;
+  comparisonHasData?: boolean;
 }
 
-const CatchTrendChart: React.FC<CatchTrendChartProps> = ({ data, comparisonAvg, comparisonType, comparisonLabel, comparisonHasData }) => {
+const CatchTrendChart: React.FC<CatchTrendChartProps> = ({
+  data,
+  comparisonAvg,
+  comparisonType,
+  comparisonLabel,
+  comparisonHasData,
+}) => {
   const { t } = useTranslation();
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === 'dark';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current || !data || data.length === 0) return;
 
-    // Get Tabler CSS variable values
-    const getTablerColor = (varName: string): string => {
-      return getComputedStyle(document.documentElement)
-        .getPropertyValue(varName)
-        .trim() || '#206bc4';
-    };
+    const getToken = (varName: string, fallback: string): string =>
+      getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
 
-    const successColor = getTablerColor('--tblr-success');
-    const mutedColor = getTablerColor('--tblr-muted');
+    const barColor = getToken('--chart-4', '#0891b2');
+    const mutedColor = getToken('--muted-foreground', '#71717a');
+    const popoverBg = getToken('--popover', '#ffffff');
+    const popoverFg = getToken('--popover-foreground', '#09090b');
+    const borderColor = getToken('--border', '#e4e4e7');
 
-    // Destroy existing chart
     if (chartRef.current) {
       chartRef.current.destroy();
     }
 
-    // Filter data to only show catches (no zero bars)
-    const catchData = data.filter(point => point.catch_kg > 0);
+    const catchData = data.filter((point) => point.catch_kg > 0);
 
-    // Prepare datasets
     const datasets: ChartDataset<'bar' | 'line', number[]>[] = [
       {
         type: 'bar',
-        data: catchData.map(point => point.catch_kg),
-        backgroundColor: `${successColor}cc`,
-        borderColor: successColor,
+        data: catchData.map((point) => point.catch_kg),
+        backgroundColor: barColor,
+        borderColor: barColor,
         borderWidth: 1,
         borderRadius: 4,
         maxBarThickness: 50,
-        order: 2
-      }
+        order: 2,
+      },
     ];
 
-    // Add comparison line if available
     if (comparisonAvg && comparisonAvg > 0) {
       datasets.push({
         type: 'line',
@@ -90,29 +94,26 @@ const CatchTrendChart: React.FC<CatchTrendChartProps> = ({ data, comparisonAvg, 
         borderDash: [5, 5],
         pointRadius: 0,
         fill: false,
-        order: 1
+        order: 1,
       });
     }
 
-    // Create chart configuration
     const config: ChartConfiguration<'bar' | 'line', number[], string> = {
       type: 'bar',
       data: {
-        labels: catchData.map(point => format(parseISO(point.date), 'MMM dd')),
-        datasets
+        labels: catchData.map((point) => format(parseISO(point.date), 'MMM dd')),
+        datasets,
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            display: false
-          },
+          legend: { display: false },
           tooltip: {
-            backgroundColor: '#ffffff',
+            backgroundColor: popoverBg,
             titleColor: mutedColor,
-            bodyColor: '#1e293b',
-            borderColor: '#e2e8f0',
+            bodyColor: popoverFg,
+            borderColor,
             borderWidth: 1,
             padding: 12,
             displayColors: false,
@@ -124,89 +125,72 @@ const CatchTrendChart: React.FC<CatchTrendChartProps> = ({ data, comparisonAvg, 
               label: (context) => {
                 const value = context.parsed.y ?? 0;
                 return `${value.toFixed(1)} ${t('stats.summary.kg')}`;
-              }
-            }
-          }
+              },
+            },
+          },
         },
         scales: {
           y: {
             beginAtZero: true,
-            ticks: {
-              color: mutedColor,
-              font: {
-                size: 11
-              }
-            },
-            grid: {
-              display: false
-            }
+            ticks: { color: mutedColor, font: { size: 11 } },
+            grid: { display: false },
           },
           x: {
             ticks: {
               color: mutedColor,
-              font: {
-                size: 11
-              },
+              font: { size: 11 },
               maxRotation: 45,
-              minRotation: 45
+              minRotation: 45,
             },
-            grid: {
-              display: false
-            }
-          }
-        }
-      }
+            grid: { display: false },
+          },
+        },
+      },
     };
 
-    // Create new chart
     chartRef.current = new Chart(canvasRef.current, config);
 
-    // Cleanup
     return () => {
       if (chartRef.current) {
         chartRef.current.destroy();
       }
     };
-  }, [data, comparisonAvg, t]);
+  }, [data, comparisonAvg, t, isDarkMode]);
 
-  // Handle empty data
   if (!data || data.length === 0) {
     return (
-      <div className="alert alert-info mb-0">
-        <div className="text-center py-4">
-          <p className="mb-1">{t('stats.chart.noData')}</p>
-          <p className="text-muted small mb-0">{t('stats.chart.startReporting')}</p>
-        </div>
-      </div>
+      <Alert className="text-center">
+        <AlertTitle>{t('stats.chart.noData')}</AlertTitle>
+        <AlertDescription>{t('stats.chart.startReporting')}</AlertDescription>
+      </Alert>
     );
   }
 
   return (
-    <div>
-      <div style={{ height: '250px', position: 'relative' }}>
-        <canvas ref={canvasRef}></canvas>
+    <div className="flex flex-col gap-2">
+      <div className="relative h-64">
+        <canvas ref={canvasRef} />
       </div>
-      {((comparisonAvg !== undefined && comparisonAvg > 0) || (comparisonType && comparisonHasData === false && comparisonLabel)) && (
-        <div className="text-center mt-2">
-          <span className="text-muted small">
-            {comparisonAvg !== undefined && comparisonAvg > 0 && (
-              <span style={{
-                display: 'inline-block',
-                width: '20px',
-                height: '2px',
-                background: `repeating-linear-gradient(to right, currentColor 0, currentColor 5px, transparent 5px, transparent 10px)`,
-                verticalAlign: 'middle',
-                marginRight: '6px'
-              }}></span>
-            )}
+      {((comparisonAvg !== undefined && comparisonAvg > 0) ||
+        (comparisonType && comparisonHasData === false && comparisonLabel)) && (
+        <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          {comparisonAvg !== undefined && comparisonAvg > 0 && (
+            <span
+              className="inline-block h-0.5 w-5"
+              style={{
+                background:
+                  'repeating-linear-gradient(to right, currentColor 0, currentColor 5px, transparent 5px, transparent 10px)',
+              }}
+            />
+          )}
+          <span>
             {comparisonHasData === false && comparisonLabel
               ? `${comparisonLabel}: ${t('stats.comparison.noData')}`
               : comparisonType === 'community'
                 ? `${t('stats.chart.communityAvg')}: ${comparisonAvg?.toFixed(1)} kg`
                 : comparisonLabel
                   ? `${comparisonLabel}: ${comparisonAvg?.toFixed(1)} kg`
-                  : `${t('stats.chart.previousAvg')}: ${comparisonAvg?.toFixed(1)} kg`
-            }
+                  : `${t('stats.chart.previousAvg')}: ${comparisonAvg?.toFixed(1)} kg`}
           </span>
         </div>
       )}

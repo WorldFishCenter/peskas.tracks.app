@@ -1,8 +1,20 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useFisherPerformance } from '../../hooks/useFisherPerformance';
-import { IconTrendingUp, IconTrendingDown, IconGauge, IconDroplet, IconTrophy } from '@tabler/icons-react';
+import {
+  DropletIcon,
+  GaugeIcon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+  TrophyIcon,
+} from 'lucide-react';
 import { format } from 'date-fns';
+import { useFisherPerformance } from '../../hooks/useFisherStats';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 
 interface EfficiencyTabProps {
   dateFrom: Date;
@@ -16,72 +28,60 @@ const EfficiencyTab: React.FC<EfficiencyTabProps> = ({ dateFrom, dateTo, compare
 
   if (loading) {
     return (
-      <div className="text-center py-5">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">{t('stats.loading')}</span>
-        </div>
-        <p className="mt-3 text-muted">{t('stats.loading')}</p>
+      <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground">
+        <Spinner className="size-6 text-primary" />
+        <p className="text-sm">{t('stats.loading')}</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="alert alert-danger" role="alert">
-        <h4 className="alert-title">{t('stats.error')}</h4>
-        <div className="text-secondary">{error}</div>
-      </div>
+      <Alert variant="destructive">
+        <AlertTitle>{t('stats.error')}</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     );
   }
 
   if (!performance) {
     return (
-      <div className="alert alert-info" role="alert">
-        <h4 className="alert-title">{t('stats.noData')}</h4>
-        <div className="text-secondary">{t('stats.tryDifferentPeriod')}</div>
-      </div>
+      <Alert>
+        <AlertTitle>{t('stats.noData')}</AlertTitle>
+        <AlertDescription>{t('stats.tryDifferentPeriod')}</AlertDescription>
+      </Alert>
     );
   }
 
   const { metrics, tripTypes, bestTrips, comparison } = performance;
 
-  // Check if user has any actual performance data (not just zeros)
-  const hasPerformanceData = bestTrips.length > 0 &&
-    Object.values(tripTypes).some((data) => data && data.count > 0);
+  const hasPerformanceData =
+    bestTrips.length > 0 && Object.values(tripTypes).some((data) => data && data.count > 0);
 
-  // Get comparison label for inline display
   const getComparisonLabel = () => {
     if (comparison.type === 'community') {
       return t('stats.comparison.community');
     }
-    // For previous period, use the date range from basedOn
     return comparison.basedOn || t('stats.comparison.lastPeriod');
   };
 
-  // Get message when no comparison data is available
   const getNoDataMessage = () => {
     if (comparison.type === 'community') {
       return t('stats.comparison.noCommunityData');
     }
-    // For previous period, show the date range with "No data"
     return `${t('stats.comparison.noDataIn')} ${comparison.basedOn}`;
   };
 
   if (!hasPerformanceData) {
     return (
-      <div className="alert alert-warning" role="alert">
-        <h4 className="alert-title">{t('stats.performance.noData')}</h4>
-        <div className="text-secondary">
-          {t('stats.performance.noDataMessage')}
-        </div>
-      </div>
+      <Alert>
+        <AlertTitle>{t('stats.performance.noData')}</AlertTitle>
+        <AlertDescription>{t('stats.performance.noDataMessage')}</AlertDescription>
+      </Alert>
     );
   }
 
-  // Calculate total trips safely
-  const totalTrips = Object.values(tripTypes).reduce((sum, data) =>
-    sum + (data?.count || 0), 0
-  );
+  const totalTrips = Object.values(tripTypes).reduce((sum, data) => sum + (data?.count || 0), 0);
 
   const renderMetricCard = (
     icon: React.ReactNode,
@@ -96,61 +96,68 @@ const EfficiencyTab: React.FC<EfficiencyTabProps> = ({ dateFrom, dateTo, compare
     const isBad = lowerIsBetter ? percentDiff > 0 : percentDiff < 0;
 
     return (
-      <div className="col-12 col-md-6">
-        <div className="card">
-          <div className="card-body">
-            <div className="d-flex align-items-center mb-3">
-              {icon}
-              <div className="ms-2">
-                <div className="fw-bold">{title}</div>
-                <div className="text-muted small">{description}</div>
-              </div>
-            </div>
-            <div className="h2 mb-2">{yourAvg.toFixed(2)}</div>
-            {comparison.basedOn && comparison.basedOn.length > 0 && comparison.basedOn !== '0' && comparison.hasData !== false ? (
-              <div className="d-flex align-items-center">
-                {isGood ? (
-                  <>
-                    <IconTrendingUp size={16} className="text-success me-1" />
-                    <span className="text-success small">
-                      +{Math.abs(percentDiff)}% vs {getComparisonLabel()}
-                    </span>
-                  </>
-                ) : isBad ? (
-                  <>
-                    <IconTrendingDown size={16} className="text-danger me-1" />
-                    <span className="text-danger small">
-                      {Math.abs(percentDiff)}% vs {getComparisonLabel()}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-muted small">{t('stats.comparison.same')}</span>
-                )}
-              </div>
-            ) : comparison.basedOn && comparison.basedOn.length > 0 ? (
-              <div className="text-muted small">{getNoDataMessage()}</div>
-            ) : (
-              <div className="text-muted small">{t('stats.noComparisonData')}</div>
-            )}
-            {comparison.basedOn && comparison.basedOn.length > 0 && (
-              <div className="text-muted small mt-2">
-                {t('stats.comparison.yourAvg')}: {yourAvg.toFixed(2)} | {t('stats.comparison.comparison', { type: comparison.type })}: {comparisonAvg.toFixed(2)}
-              </div>
-            )}
+      <Card>
+        <CardHeader className="flex-row items-center gap-2.5">
+          {icon}
+          <div className="flex flex-col gap-0.5">
+            <CardTitle className="text-sm">{title}</CardTitle>
+            <CardDescription className="text-xs">{description}</CardDescription>
           </div>
-        </div>
-      </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <div className="text-3xl font-bold tabular-nums">{yourAvg.toFixed(2)}</div>
+
+          {comparison.basedOn &&
+          comparison.basedOn.length > 0 &&
+          comparison.basedOn !== '0' &&
+          comparison.hasData !== false ? (
+            <div className="flex items-center gap-1 text-xs">
+              {isGood ? (
+                <>
+                  <TrendingUpIcon className="size-4 text-primary" />
+                  <span className="text-primary">
+                    +{Math.abs(percentDiff)}% vs {getComparisonLabel()}
+                  </span>
+                </>
+              ) : isBad ? (
+                <>
+                  <TrendingDownIcon className="size-4 text-destructive" />
+                  <span className="text-destructive">
+                    {Math.abs(percentDiff)}% vs {getComparisonLabel()}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">{t('stats.comparison.same')}</span>
+              )}
+            </div>
+          ) : comparison.basedOn && comparison.basedOn.length > 0 ? (
+            <div className="text-xs text-muted-foreground">{getNoDataMessage()}</div>
+          ) : (
+            <div className="text-xs text-muted-foreground">{t('stats.noComparisonData')}</div>
+          )}
+
+          {comparison.basedOn && comparison.basedOn.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              {t('stats.comparison.yourAvg')}: {yourAvg.toFixed(2)} |{' '}
+              {t('stats.comparison.comparison', { type: comparison.type })}:{' '}
+              {comparisonAvg.toFixed(2)}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     );
   };
 
+  const validBestTrips = bestTrips.filter((trip) => trip.cpue > 0);
+
   return (
-    <div className="row g-3">
+    <div className="flex flex-col gap-4">
       {/* Performance Metrics */}
-      <div className="col-12">
-        <h4 className="mb-3">{t('stats.performance.title')}</h4>
-        <div className="row g-3">
+      <div className="flex flex-col gap-3">
+        <h4 className="text-base font-semibold">{t('stats.performance.title')}</h4>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {renderMetricCard(
-            <IconGauge size={24} className="text-primary" />,
+            <GaugeIcon className="size-6 text-primary" />,
             t('stats.performance.cpue'),
             t('stats.performance.cpueDesc'),
             metrics.cpue_kg_per_hour.yourAvg,
@@ -158,7 +165,7 @@ const EfficiencyTab: React.FC<EfficiencyTabProps> = ({ dateFrom, dateTo, compare
             metrics.cpue_kg_per_hour.percentDiff
           )}
           {renderMetricCard(
-            <IconDroplet size={24} className="text-info" />,
+            <DropletIcon className="size-6 text-primary" />,
             t('stats.performance.fuelEfficiency'),
             t('stats.performance.fuelDesc'),
             metrics.kg_per_liter.yourAvg,
@@ -168,103 +175,92 @@ const EfficiencyTab: React.FC<EfficiencyTabProps> = ({ dateFrom, dateTo, compare
         </div>
       </div>
 
-      {/* Trip Types */}
-      <div className="col-12 col-md-6">
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">{t('stats.performance.tripTypes')}</h3>
-          </div>
-          <div className="card-body">
+      {/* Trip Types & Best Trips */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('stats.performance.tripTypes')}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
             {Object.entries(tripTypes).map(([type, data]) => {
               if (!data || data.count === 0) return null;
 
-              const typeLabel = type === 'mid-range'
-                ? t('stats.performance.midRange')
-                : t(`stats.performance.${type}`);
+              const typeLabel =
+                type === 'mid-range'
+                  ? t('stats.performance.midRange')
+                  : t(`stats.performance.${type}`);
 
               const percentage = totalTrips > 0 ? (data.count / totalTrips) * 100 : 0;
 
               return (
-                <div key={type} className="mb-3">
-                  <div className="d-flex justify-content-between mb-1">
-                    <span className="text-capitalize">{typeLabel}</span>
-                    <span className="fw-bold">{data.count} {t('stats.summary.trips')}</span>
+                <div key={type} className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="capitalize">{typeLabel}</span>
+                    <span className="font-semibold tabular-nums">
+                      {data.count} {t('stats.summary.trips')} ({percentage.toFixed(0)}%)
+                    </span>
                   </div>
-                  <div className="progress" style={{ height: '20px' }}>
-                    <div
-                      className="progress-bar bg-success"
-                      role="progressbar"
-                      style={{ width: `${percentage}%` }}
-                      aria-valuenow={data.count}
-                      aria-valuemin={0}
-                      aria-valuemax={totalTrips}
-                    >
-                      {percentage.toFixed(0)}%
-                    </div>
-                  </div>
-                  <div className="text-muted small mt-1">
+                  <Progress value={percentage} />
+                  <div className="text-xs text-muted-foreground">
                     {data.avgCatch > 0
                       ? `${t('stats.summary.avgCatch')}: ${data.avgCatch.toFixed(1)} ${t('stats.summary.kg')}`
-                      : t('stats.noCatchesYet')
-                    }
+                      : t('stats.noCatchesYet')}
                   </div>
                 </div>
               );
             })}
-          </div>
-        </div>
-      </div>
+          </CardContent>
+        </Card>
 
-      {/* Best Trips */}
-      <div className="col-12 col-md-6">
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">
-              <IconTrophy className="me-2" size={20} />
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrophyIcon className="size-5 text-primary" />
               {t('stats.performance.bestTrips')}
-            </h3>
-          </div>
-          <div className="card-body">
-            {bestTrips.length > 0 ? (
-              <div className="list-group list-group-flush">
-                {bestTrips.filter(trip => trip.cpue > 0).map((trip, index) => (
-                  <div key={index} className="list-group-item px-0">
-                    <div className="d-flex justify-content-between align-items-center">
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {validBestTrips.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {validBestTrips.map((trip, index) => (
+                  <div key={index} className="flex flex-col gap-3">
+                    {index > 0 && <Separator />}
+                    <div className="flex items-center justify-between gap-2">
                       <div>
-                        <div className="text-muted small">
+                        <div className="text-xs text-muted-foreground">
                           {format(new Date(trip.date), 'MMM dd, yyyy')}
                         </div>
-                        <div className="text-capitalize small">{trip.tripType}</div>
+                        <div className="text-sm capitalize">{trip.tripType}</div>
                       </div>
-                      <div className="text-end">
-                        <div className="badge bg-success-lt fs-3">
-                          {trip.cpue.toFixed(1)} {t('stats.performance.cpueDesc')}
-                        </div>
-                      </div>
+                      <Badge variant="secondary">
+                        {trip.cpue.toFixed(1)} {t('stats.performance.cpueDesc')}
+                      </Badge>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-muted">{t('stats.performance.noData')}</p>
+              <p className="text-sm text-muted-foreground">{t('stats.performance.noData')}</p>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Comparison Info */}
-      {comparison.basedOn && comparison.basedOn.length > 0 && comparison.basedOn !== '0' ? (
-        <div className="col-12">
-          <div className={`alert ${comparison.hasData === false ? 'alert-warning' : 'alert-info'} mb-0`}>
-            <div className="d-flex align-items-center">
-              <div>
-                <strong>{comparison.type === 'community' ? t('stats.comparison.comparedTo') : t('stats.comparison.comparedToPrevious')}:</strong> {comparison.basedOn}
-                {comparison.hasData === false && ` - ${t('stats.comparison.noData')}`}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {comparison.basedOn && comparison.basedOn.length > 0 && comparison.basedOn !== '0' && (
+        <Alert>
+          <AlertDescription>
+            <strong className="text-foreground">
+              {comparison.type === 'community'
+                ? t('stats.comparison.comparedTo')
+                : t('stats.comparison.comparedToPrevious')}
+              :
+            </strong>{' '}
+            {comparison.basedOn}
+            {comparison.hasData === false && ` - ${t('stats.comparison.noData')}`}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 };

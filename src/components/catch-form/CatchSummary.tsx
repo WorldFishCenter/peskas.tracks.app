@@ -1,48 +1,55 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconBan } from '@tabler/icons-react';
+import { BanIcon } from 'lucide-react';
 import { CatchEntry } from '../../types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 
 interface CatchSummaryProps {
   noCatch: boolean;
   catches: CatchEntry[];
-  isDarkMode: boolean;
 }
 
-const CatchSummary: React.FC<CatchSummaryProps> = ({ noCatch, catches, isDarkMode }) => {
+const CatchSummary: React.FC<CatchSummaryProps> = ({ noCatch, catches }) => {
   const { t } = useTranslation();
 
   const totalWeight = catches.reduce((sum, catchEntry) => sum + (catchEntry.quantity || 0), 0);
 
   return (
-    <div className={`card ${isDarkMode ? 'bg-dark' : 'bg-light'}`}>
-      <div className="card-header p-3">
-        <h5 className="card-title mb-0">{t('catch.summary')}</h5>
-      </div>
-      <div className="card-body p-3">
+    <Card size="sm" className="bg-muted/40">
+      <CardHeader className="border-b pb-2.5">
+        <CardTitle className="text-sm">{t('catch.summary')}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
         {noCatch ? (
-          <div className="text-center text-muted">
-            <IconBan size={32} className="mb-2" />
-            <p>{t('catch.noCatchWillBeReported')}</p>
+          <div className="flex flex-col items-center gap-2 py-4 text-center text-muted-foreground">
+            <BanIcon className="size-8" />
+            <p className="text-sm">{t('catch.noCatchWillBeReported')}</p>
           </div>
         ) : (
           <>
-            <h6 className="mb-2">{t('catch.catchEntries')}:</h6>
-            {catches.map((catchEntry) => (
-              <div key={catchEntry.id} className="d-flex justify-content-between mb-1 small">
-                <span>{t(`catch.fishGroups.${catchEntry.fishGroup.replace(/[^a-zA-Z]/g, '')}`)}</span>
-                <span className="fw-bold">{catchEntry.quantity || 0} kg</span>
-              </div>
-            ))}
-            <hr />
-            <div className="d-flex justify-content-between fw-bold">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t('catch.catchEntries')}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {catches.map((catchEntry) => (
+                <div key={catchEntry.id} className="flex items-center justify-between text-xs">
+                  <span>
+                    {t(`catch.fishGroups.${catchEntry.fishGroup.replace(/[^a-zA-Z]/g, '')}`)}
+                  </span>
+                  <span className="font-semibold tabular-nums">{catchEntry.quantity || 0} kg</span>
+                </div>
+              ))}
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between font-semibold">
               <span>{t('catch.totalWeight')}:</span>
-              <span>{totalWeight.toFixed(1)} kg</span>
+              <span className="tabular-nums">{totalWeight.toFixed(1)} kg</span>
             </div>
           </>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

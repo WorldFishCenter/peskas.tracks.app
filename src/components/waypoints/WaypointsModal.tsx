@@ -1,9 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconMapPin, IconX, IconTrash, IconCurrentLocation, IconClick, IconEye } from '@tabler/icons-react';
+import {
+  CalendarIcon,
+  CrosshairIcon,
+  EyeIcon,
+  MapPinIcon,
+  MousePointerClickIcon,
+  Trash2Icon,
+  XIcon,
+} from 'lucide-react';
 import { Waypoint, WaypointFormData, WaypointType, GPSCoordinate } from '../../types';
 import { getAllWaypointTypeConfigs } from '../../utils/waypointConfig';
-import ModalShell from '../ModalShell';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 
 interface WaypointsModalProps {
   waypoints: Waypoint[];
@@ -34,12 +80,11 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
   onRequestMapClick,
   onToggleWaypoint,
   onToggleAllWaypoints,
-  onShowWaypointOnMap
+  onShowWaypointOnMap,
 }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('add');
 
-  // Form state
   const [name, setName] = useState('');
   const [type, setType] = useState<WaypointType>('favorite_spot');
   const [description, setDescription] = useState('');
@@ -47,13 +92,12 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const visibleCount = waypoints.filter(wp => wp.visible !== false).length;
+  const visibleCount = waypoints.filter((wp) => wp.visible !== false).length;
 
-  // Update coordinates when selectedMapCoordinates prop changes
   useEffect(() => {
     if (selectedMapCoordinates) {
       setCoordinates(selectedMapCoordinates);
-      setActiveTab('add'); // Switch to add tab when coordinates are selected
+      setActiveTab('add');
     }
   }, [selectedMapCoordinates]);
 
@@ -65,10 +109,6 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
     }
   };
 
-  // Auto-populate GPS coordinates only when:
-  // 1. deviceLocation is available (from "Get My Location" button)
-  // 2. No coordinates are currently set
-  // 3. No map coordinates were passed from drag-map mode (selectedMapCoordinates takes precedence)
   useEffect(() => {
     if (deviceLocation && !coordinates && !selectedMapCoordinates) {
       setCoordinates({ lat: deviceLocation.latitude, lng: deviceLocation.longitude });
@@ -96,18 +136,15 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
         name: name.trim(),
         type,
         description: description.trim() || undefined,
-        coordinates
+        coordinates,
       };
 
       await onSave(formData);
 
-      // Reset form
       setName('');
       setDescription('');
       setCoordinates(null);
       setType('favorite_spot');
-
-      // Switch to list tab to show the new waypoint
       setActiveTab('list');
     } catch (err) {
       console.error('Error saving waypoint:', err);
@@ -133,396 +170,394 @@ const WaypointsModal: React.FC<WaypointsModalProps> = ({
     }
   };
 
-  // Get waypoint type configurations from centralized config
   const waypointTypeConfigs = getAllWaypointTypeConfigs();
-  const waypointTypes = waypointTypeConfigs.map(config => ({
+  const waypointTypes = waypointTypeConfigs.map((config) => ({
     value: config.value,
     label: t(config.labelKey),
     icon: config.icon,
-    color: config.colorClass,
-    colorHex: config.colorHex
+    colorHex: config.colorHex,
+  }));
+
+  const typeSelectItems = waypointTypes.map((wt) => ({
+    value: wt.value,
+    label: wt.label,
   }));
 
   return (
-    <ModalShell
-      onClose={onClose}
-      dialogClassName="modal-lg modal-dialog-scrollable"
-      dismissible={!isSubmitting}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) onClose();
+      }}
     >
-            {/* Header */}
-            <div className="modal-header">
-              <h5 className="modal-title">
-                <IconMapPin className="me-2" size={24} />
-                {t('waypoints.title')}
-              </h5>
-              <button
-                type="button"
-                className="btn-close"
-                onClick={onClose}
-                aria-label={t('common.close')}
-              />
-            </div>
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MapPinIcon className="size-5 text-primary" />
+            {t('waypoints.title')}
+          </DialogTitle>
+          <DialogDescription className="sr-only">{t('waypoints.title')}</DialogDescription>
+        </DialogHeader>
 
-            {/* Tabs */}
-            <div className="card-tabs">
-              <ul className="nav nav-tabs" role="tablist">
-                <li className="nav-item" role="presentation">
-                  <button
-                    className={`nav-link ${activeTab === 'add' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('add')}
-                    type="button"
-                    role="tab"
-                  >
-                    <IconMapPin className="me-2" size={18} />
-                    {t('waypoints.tabs.add')}
-                  </button>
-                </li>
-                <li className="nav-item" role="presentation">
-                  <button
-                    className={`nav-link ${activeTab === 'list' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('list')}
-                    type="button"
-                    role="tab"
-                  >
-                    {t('waypoints.tabs.list')}
-                    {waypoints.length > 0 && (
-                      <span className="badge ms-2">{waypoints.length}</span>
-                    )}
-                  </button>
-                </li>
-              </ul>
-            </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as TabType)}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <TabsList className="w-full">
+            <TabsTrigger value="add">
+              <MapPinIcon />
+              {t('waypoints.tabs.add')}
+            </TabsTrigger>
+            <TabsTrigger value="list">
+              {t('waypoints.tabs.list')}
+              {waypoints.length > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {waypoints.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Tab Content */}
-            <div className="modal-body">
-              {/* Add Waypoint Tab */}
-              {activeTab === 'add' && (
-                <form onSubmit={handleSubmit}>
-                  {/* Error message */}
-                  {error && (
-                    <div className="alert alert-danger" role="alert">
-                      <div className="d-flex align-items-center">
-                        <IconX className="me-2" size={20} />
-                        <div>{error}</div>
-                      </div>
-                    </div>
-                  )}
+          <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+            {/* Add Waypoint Tab */}
+            <TabsContent value="add">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <XIcon />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
 
-                  {/* Instructions */}
-                  <div className="alert alert-info mb-3">
-                    <div className="d-flex align-items-start">
-                      <IconClick className="me-2 mt-1" size={20} />
-                      <div>
-                        <strong>{t('waypoints.form.instructionsTitle')}</strong>
-                        <ol className="mb-0 mt-2 ps-3">
-                          <li>{t('waypoints.form.instructionsGPS')}</li>
-                          <li>{t('waypoints.form.instructionsMap')}</li>
-                        </ol>
-                      </div>
-                    </div>
-                  </div>
+                <Alert>
+                  <MousePointerClickIcon className="text-primary" />
+                  <AlertTitle>{t('waypoints.form.instructionsTitle')}</AlertTitle>
+                  <AlertDescription>
+                    <ol className="mt-1 flex list-decimal flex-col gap-1 pl-4">
+                      <li>{t('waypoints.form.instructionsGPS')}</li>
+                      <li>{t('waypoints.form.instructionsMap')}</li>
+                    </ol>
+                  </AlertDescription>
+                </Alert>
 
+                <FieldGroup>
                   {/* Location Selection */}
-                  <div className="mb-3">
-                    <label className="form-label required">{t('waypoints.form.locationLabel')}</label>
-                    <div className="btn-group w-100 mb-2">
-                      <button
+                  <Field>
+                    <FieldLabel>{t('waypoints.form.locationLabel')} *</FieldLabel>
+                    <div className="flex gap-2">
+                      <Button
                         type="button"
-                        className="btn btn-outline-primary"
+                        variant="outline"
+                        className="flex-1"
                         onClick={handleUseCurrentGPS}
                         disabled={isGettingLocation}
                       >
                         {isGettingLocation ? (
                           <>
-                            <span className="spinner-border spinner-border-sm me-2" />
+                            <Spinner data-icon="inline-start" />
                             {t('waypoints.form.gettingGps')}
                           </>
                         ) : (
                           <>
-                            <IconCurrentLocation className="me-2" size={18} />
+                            <CrosshairIcon data-icon="inline-start" />
                             {t('waypoints.form.useGps')}
                           </>
                         )}
-                      </button>
+                      </Button>
                       {onRequestMapClick && (
-                        <button
+                        <Button
                           type="button"
-                          className="btn btn-outline-success"
+                          variant="outline"
+                          className="flex-1"
                           onClick={onRequestMapClick}
                         >
-                          <IconClick className="me-2" size={18} />
+                          <MousePointerClickIcon data-icon="inline-start" />
                           {t('waypoints.form.clickOnMap')}
-                        </button>
+                        </Button>
                       )}
                     </div>
+
                     {coordinates ? (
-                      <div className="card bg-success-lt">
-                        <div className="card-body p-3">
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div className="text-start">
-                              <div className="text-muted small">{t('waypoints.form.latitude')}</div>
-                              <div className="h4 mb-0">{coordinates.lat.toFixed(6)}</div>
+                      <Card size="sm" className="bg-muted/40">
+                        <CardContent className="flex items-center justify-between gap-2">
+                          <div>
+                            <div className="text-xs text-muted-foreground">
+                              {t('waypoints.form.latitude')}
                             </div>
-                            <div className="text-start">
-                              <div className="text-muted small">{t('waypoints.form.longitude')}</div>
-                              <div className="h4 mb-0">{coordinates.lng.toFixed(6)}</div>
+                            <div className="font-mono text-sm font-semibold">
+                              {coordinates.lat.toFixed(6)}
                             </div>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-ghost-danger"
-                              onClick={() => setCoordinates(null)}
-                            >
-                              {t('waypoints.form.clear')}
-                            </button>
                           </div>
-                        </div>
-                      </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">
+                              {t('waypoints.form.longitude')}
+                            </div>
+                            <div className="font-mono text-sm font-semibold">
+                              {coordinates.lng.toFixed(6)}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setCoordinates(null)}
+                          >
+                            {t('waypoints.form.clear')}
+                          </Button>
+                        </CardContent>
+                      </Card>
                     ) : (
-                      <div className="card bg-secondary-lt">
-                        <div className="card-body p-3 text-center text-muted">
-                          <IconMapPin size={24} className="mb-2" />
-                          <div>{t('waypoints.form.noLocationSelectedTitle')}</div>
-                          <small>{t('waypoints.form.noLocationSelectedSubtitle')}</small>
-                        </div>
-                      </div>
+                      <Card size="sm" className="bg-muted/50">
+                        <CardContent className="flex flex-col items-center gap-1 py-2 text-center text-muted-foreground">
+                          <MapPinIcon className="size-5" />
+                          <div className="text-sm font-medium text-foreground">
+                            {t('waypoints.form.noLocationSelectedTitle')}
+                          </div>
+                          <div className="text-xs">
+                            {t('waypoints.form.noLocationSelectedSubtitle')}
+                          </div>
+                        </CardContent>
+                      </Card>
                     )}
-                  </div>
+                  </Field>
 
                   {/* Name field */}
-                  <div className="mb-3">
-                    <label className="form-label required">{t('waypoints.form.nameLabel')}</label>
-                    <input
+                  <Field>
+                    <FieldLabel htmlFor="waypoint-name">
+                      {t('waypoints.form.nameLabel')} *
+                    </FieldLabel>
+                    <Input
+                      id="waypoint-name"
                       type="text"
-                      className="form-control"
                       placeholder={t('waypoints.form.namePlaceholder')}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
                     />
-                    <small className="form-hint">{t('waypoints.form.nameHint')}</small>
-                  </div>
+                    <FieldDescription>{t('waypoints.form.nameHint')}</FieldDescription>
+                  </Field>
 
                   {/* Type field */}
-                  <div className="mb-3">
-                    <label className="form-label required">{t('waypoints.form.typeLabel')}</label>
-                    <select
-                      className="form-select"
+                  <Field>
+                    <FieldLabel>{t('waypoints.form.typeLabel')} *</FieldLabel>
+                    <Select
+                      items={typeSelectItems}
                       value={type}
-                      onChange={(e) => setType(e.target.value as WaypointType)}
-                      required
+                      onValueChange={(v) => {
+                        if (v) setType(v as WaypointType);
+                      }}
                     >
-                      {waypointTypes.map(wt => (
-                        <option key={wt.value} value={wt.value}>
-                          {wt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <small className="form-hint">{t('waypoints.form.typeHint')}</small>
-                  </div>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {waypointTypes.map((wt) => (
+                            <SelectItem key={wt.value} value={wt.value}>
+                              {wt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>{t('waypoints.form.typeHint')}</FieldDescription>
+                  </Field>
 
                   {/* Description field */}
-                  <div className="mb-3">
-                    <label className="form-label">{t('waypoints.form.descriptionLabel')}</label>
-                    <textarea
-                      className="form-control"
+                  <Field>
+                    <FieldLabel htmlFor="waypoint-description">
+                      {t('waypoints.form.descriptionLabel')}
+                    </FieldLabel>
+                    <Textarea
+                      id="waypoint-description"
                       rows={2}
                       placeholder={t('waypoints.form.descriptionPlaceholder')}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                     />
-                    <small className="form-hint">{t('waypoints.form.descriptionHint')}</small>
-                  </div>
+                    <FieldDescription>{t('waypoints.form.descriptionHint')}</FieldDescription>
+                  </Field>
 
-                  {/* Submit button */}
-                  <button
+                  <Button
                     type="submit"
-                    className="btn btn-primary w-100"
+                    size="lg"
+                    className="w-full"
                     disabled={isSubmitting || !name.trim() || !coordinates}
                   >
                     {isSubmitting ? (
                       <>
-                        <span className="spinner-border spinner-border-sm me-2" />
+                        <Spinner data-icon="inline-start" />
                         {t('waypoints.form.saving')}
                       </>
                     ) : (
                       <>
-                        <IconMapPin className="me-2" size={18} />
+                        <MapPinIcon data-icon="inline-start" />
                         {t('waypoints.form.saveButton')}
                       </>
                     )}
-                  </button>
-                </form>
-              )}
+                  </Button>
+                </FieldGroup>
+              </form>
+            </TabsContent>
 
-              {/* Waypoints List Tab */}
-              {activeTab === 'list' && (
-                <div>
-                  {waypoints.length === 0 ? (
-                    <div className="empty py-5">
-                      <div className="empty-icon">
-                        <IconMapPin size={48} className="text-muted" />
-                      </div>
-                      <p className="empty-title">{t('waypoints.list.emptyTitle')}</p>
-                      <p className="empty-subtitle text-muted">
-                        {t('waypoints.list.emptySubtitle', { tab: t('waypoints.tabs.add') })}
-                      </p>
+            {/* Waypoints List Tab */}
+            <TabsContent value="list">
+              {waypoints.length === 0 ? (
+                <Empty className="py-10">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MapPinIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('waypoints.list.emptyTitle')}</EmptyTitle>
+                    <EmptyDescription>
+                      {t('waypoints.list.emptySubtitle', { tab: t('waypoints.tabs.add') })}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{t('waypoints.list.title')}</h3>
+                      <Badge variant="secondary">
+                        {t('waypoints.list.countLabel', {
+                          visible: visibleCount,
+                          total: waypoints.length,
+                        })}
+                      </Badge>
                     </div>
-                  ) : (
-                    <>
-                      {/* Waypoints List Header with Bulk Controls */}
-                      <div className="card-header">
-                        <h3 className="card-title">
-                          {t('waypoints.list.title')}
-                          <span className="badge badge-pill ms-2">
-                            {t('waypoints.list.countLabel', { visible: visibleCount, total: waypoints.length })}
-                          </span>
-                        </h3>
-                        <div className="card-actions">
-                          {onToggleAllWaypoints && (
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => {
-                                const allVisible = waypoints.every(wp => wp.visible !== false);
-                                onToggleAllWaypoints(!allVisible);
-                              }}
-                            >
-                              {waypoints.every(wp => wp.visible !== false)
-                                ? t('waypoints.hideAll')
-                                : t('waypoints.showAll')}
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                    {onToggleAllWaypoints && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const allVisible = waypoints.every((wp) => wp.visible !== false);
+                          onToggleAllWaypoints(!allVisible);
+                        }}
+                      >
+                        {waypoints.every((wp) => wp.visible !== false)
+                          ? t('waypoints.hideAll')
+                          : t('waypoints.showAll')}
+                      </Button>
+                    )}
+                  </div>
 
-                      {/* Waypoints List */}
-                      <div className="list-group list-group-flush">
-                        {waypoints.map((waypoint) => {
-                          const typeInfo = waypointTypes.find(t => t.value === waypoint.type) || waypointTypes[3];
-                          const createdDate = waypoint.createdAt ? new Date(waypoint.createdAt) : null;
-                          const formattedDate = createdDate ? createdDate.toLocaleDateString(undefined, {
+                  <Separator />
+
+                  <div className="flex flex-col gap-3">
+                    {waypoints.map((waypoint, index) => {
+                      const typeInfo =
+                        waypointTypes.find((wt) => wt.value === waypoint.type) || waypointTypes[3];
+                      const TypeIcon = typeInfo.icon;
+                      const createdDate = waypoint.createdAt ? new Date(waypoint.createdAt) : null;
+                      const formattedDate = createdDate
+                        ? createdDate.toLocaleDateString(undefined, {
                             year: 'numeric',
                             month: 'short',
-                            day: 'numeric'
-                          }) : null;
+                            day: 'numeric',
+                          })
+                        : null;
 
-                          return (
-                            <div
-                              key={waypoint._id}
-                              className="list-group-item"
-                            >
-                              {/* Mobile-optimized layout */}
-                              <div className="d-flex align-items-start gap-3">
-                                {/* Visibility Toggle */}
-                                {onToggleWaypoint && waypoint._id && (
-                                  <div className="pt-1">
-                                    <label className="form-check form-switch mb-0">
-                                      <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        checked={waypoint.visible !== false}
-                                        onChange={() => onToggleWaypoint(waypoint._id!)}
-                                        title={t('waypoints.toggleVisibility')}
-                                      />
-                                    </label>
-                                  </div>
-                                )}
+                      return (
+                        <div key={waypoint._id} className="flex flex-col gap-3">
+                          {index > 0 && <Separator />}
+                          <div className="flex items-start gap-3">
+                            {onToggleWaypoint && waypoint._id && (
+                              <div className="pt-1">
+                                <Switch
+                                  checked={waypoint.visible !== false}
+                                  onCheckedChange={() => onToggleWaypoint(waypoint._id!)}
+                                  aria-label={t('waypoints.toggleVisibility')}
+                                />
+                              </div>
+                            )}
 
-                                {/* Icon */}
-                                <div className="pt-1">
-                                  <i className={`ti ${typeInfo.icon} ${typeInfo.color}`} style={{ fontSize: '1.75rem' }}></i>
-                                </div>
+                            <div className="pt-0.5">
+                              <TypeIcon
+                                className="size-6 shrink-0"
+                                style={{ color: typeInfo.colorHex }}
+                              />
+                            </div>
 
-                                {/* Content - takes remaining space */}
-                                <div className="flex-fill">
-                                  <div className="d-flex justify-content-between align-items-start mb-2">
-                                    <div className="flex-fill">
-                                      <div className="fw-bold mb-1">{waypoint.name}</div>
-                                      <div className="d-flex flex-wrap gap-2 align-items-center">
-                                        {/* Colored badge with type name */}
-                                        <span
-                                          className="badge"
-                                          style={{
-                                            backgroundColor: typeInfo.colorHex,
-                                            color: 'white',
-                                            fontWeight: 500
-                                          }}
-                                        >
-                                          {typeInfo.label}
-                                        </span>
-                                        {formattedDate && (
-                                          <span className="text-muted small">
-                                            <i className="ti ti-calendar me-1"></i>
-                                            {formattedDate}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="text-secondary small mb-2">
-                                    <i className="ti ti-map-pin me-1"></i>
-                                    <span className="font-monospace">{waypoint.coordinates.lat.toFixed(4)}, {waypoint.coordinates.lng.toFixed(4)}</span>
-                                  </div>
-
-                                  {waypoint.description && (
-                                    <div className="text-secondary small mb-2">
-                                      {waypoint.description}
-                                    </div>
+                            <div className="flex min-w-0 flex-1 flex-col gap-2">
+                              <div>
+                                <div className="font-semibold">{waypoint.name}</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  <Badge variant="secondary">
+                                    <span
+                                      className="size-2 rounded-full"
+                                      style={{ backgroundColor: typeInfo.colorHex }}
+                                    />
+                                    {typeInfo.label}
+                                  </Badge>
+                                  {formattedDate && (
+                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <CalendarIcon className="size-3.5" />
+                                      {formattedDate}
+                                    </span>
                                   )}
-
-                                  {/* Action Buttons - Full width on mobile */}
-                                  <div className="d-flex gap-2 mt-2">
-                                    {/* Show on Map Button */}
-                                    {onShowWaypointOnMap && (
-                                      <button
-                                        className="btn btn-primary flex-fill"
-                                        onClick={() => onShowWaypointOnMap(waypoint)}
-                                        style={{ minHeight: '44px' }}
-                                      >
-                                        <IconEye size={20} className="me-2" />
-                                        <span>{t('waypoints.showOnMap')}</span>
-                                      </button>
-                                    )}
-                                    {/* Delete Button */}
-                                    {waypoint._id && (
-                                      <button
-                                        className="btn btn-outline-danger"
-                                        onClick={() => handleDelete(waypoint._id!)}
-                                        disabled={deletingId === waypoint._id}
-                                        title={t('waypoints.panel.delete')}
-                                        style={{ minHeight: '44px', minWidth: '44px' }}
-                                      >
-                                        {deletingId === waypoint._id ? (
-                                          <span className="spinner-border spinner-border-sm" />
-                                        ) : (
-                                          <IconTrash size={20} />
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
                                 </div>
                               </div>
+
+                              <div className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                                <MapPinIcon className="size-3.5" />
+                                <span>
+                                  {waypoint.coordinates.lat.toFixed(4)},{' '}
+                                  {waypoint.coordinates.lng.toFixed(4)}
+                                </span>
+                              </div>
+
+                              {waypoint.description && (
+                                <p className="text-xs text-muted-foreground">
+                                  {waypoint.description}
+                                </p>
+                              )}
+
+                              <div className="flex gap-2">
+                                {onShowWaypointOnMap && (
+                                  <Button
+                                    className="h-10 flex-1"
+                                    onClick={() => onShowWaypointOnMap(waypoint)}
+                                  >
+                                    <EyeIcon data-icon="inline-start" />
+                                    {t('waypoints.showOnMap')}
+                                  </Button>
+                                )}
+                                {waypoint._id && (
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    className="size-10"
+                                    onClick={() => handleDelete(waypoint._id!)}
+                                    disabled={deletingId === waypoint._id}
+                                    title={t('waypoints.panel.delete')}
+                                    aria-label={t('waypoints.panel.delete')}
+                                  >
+                                    {deletingId === waypoint._id ? <Spinner /> : <Trash2Icon />}
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-            </div>
+            </TabsContent>
+          </div>
+        </Tabs>
 
-            {/* Footer */}
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-              >
-                {t('common.close')}
-              </button>
-            </div>
-    </ModalShell>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            {t('common.close')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

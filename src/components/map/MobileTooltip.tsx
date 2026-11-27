@@ -1,11 +1,21 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { XIcon } from 'lucide-react';
 import { MobileTooltip as MobileTooltipType, TripPoint, LiveLocation, GPSCoordinate, Waypoint } from '../../types';
-import { formatTime, formatSpeed, getDirectionFromHeading, formatDuration, formatLocationTime, formatCoordinates } from '../../utils/formatters';
+import {
+  formatTime,
+  formatSpeed,
+  getDirectionFromHeading,
+  formatDuration,
+  formatLocationTime,
+  formatCoordinates,
+} from '../../utils/formatters';
 import { anonymizeBoatName, anonymizeImei } from '../../utils/demoData';
+import { getWaypointColorHex } from '../../utils/waypointConfig';
 import i18n from '../../i18n';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
-// Helper to get waypoint type display name
 const getWaypointTypeLabel = (type: string): string => {
   switch (type) {
     case 'port':
@@ -22,23 +32,6 @@ const getWaypointTypeLabel = (type: string): string => {
   }
 };
 
-// Helper to get waypoint color
-const getWaypointColor = (type: string): string => {
-  switch (type) {
-    case 'port':
-      return '#8e44ad'; // Purple
-    case 'anchorage':
-      return '#2980b9'; // Blue
-    case 'fishing_ground':
-      return '#27ae60'; // Green
-    case 'favorite_spot':
-      return '#f1c40f'; // Gold
-    case 'other':
-    default:
-      return '#7f8c8d'; // Gray
-  }
-};
-
 interface MobileTooltipProps {
   tooltip: MobileTooltipType;
   onClose: () => void;
@@ -50,7 +43,7 @@ const MobileTooltipComponent: React.FC<MobileTooltipProps> = ({
   tooltip,
   onClose,
   filteredTripById,
-  selectedTripId
+  selectedTripId,
 }) => {
   const { t } = useTranslation();
   const { object } = tooltip;
@@ -60,110 +53,73 @@ const MobileTooltipComponent: React.FC<MobileTooltipProps> = ({
   const isDragging = useRef<boolean>(false);
   const [dragOffset, setDragOffset] = useState<number>(0);
   const [isClosing, setIsClosing] = useState<boolean>(false);
-  
-  // Smooth close animation
+
   const handleClose = useCallback(() => {
     isDragging.current = false;
-    
     setIsClosing(true);
     setTimeout(() => {
       onClose();
-    }, 300); // Match animation duration
+    }, 250);
   }, [onClose]);
-  
-  // Handle click outside to close tooltip
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node) && !isDragging.current) {
+      if (
+        tooltipRef.current &&
+        !tooltipRef.current.contains(event.target as Node) &&
+        !isDragging.current
+      ) {
         handleClose();
       }
     };
-    
-    // Add listeners with a small delay to prevent immediate closing
+
     const timeoutId = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
     }, 100);
-    
-    // Cleanup: restore scrolling on component unmount
+
     return () => {
       clearTimeout(timeoutId);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [handleClose]);
-  
-  // Handle drag gestures with smooth follow
+
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
     startY.current = e.touches[0].clientY;
     currentY.current = startY.current;
     isDragging.current = true;
-    
-    // Add active cursor effect
-    if (tooltipRef.current) {
-      tooltipRef.current.style.cursor = 'grabbing';
-    }
   };
-  
+
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging.current) return;
-    
-    // Prevent default to stop background scrolling
     e.preventDefault();
     e.stopPropagation();
-    
+
     currentY.current = e.touches[0].clientY;
-    const deltaY = Math.max(0, currentY.current - startY.current); // Only allow downward drag
-    
-    // Apply drag offset for real-time feedback
-    setDragOffset(deltaY);
-    
-    // Add resistance effect as you drag further
+    const deltaY = Math.max(0, currentY.current - startY.current);
     const resistance = Math.min(deltaY / 100, 1);
-    const resistedOffset = deltaY * (1 - resistance * 0.3);
-    setDragOffset(resistedOffset);
+    setDragOffset(deltaY * (1 - resistance * 0.3));
   };
-  
+
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isDragging.current) return;
-    
     e.preventDefault();
     e.stopPropagation();
-    
+
     const deltaY = currentY.current - startY.current;
     isDragging.current = false;
-    
-    // Reset cursor
-    if (tooltipRef.current) {
-      tooltipRef.current.style.cursor = 'grab';
-    }
-    
-    // If dragged down more than 80px or with sufficient velocity, close
+
     if (deltaY > 80) {
       handleClose();
     } else {
-      // Snap back to original position
       setDragOffset(0);
     }
   };
 
-  // Detect current theme from document attribute
-  const isDarkMode = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-  
-  // Theme-aware colors
-  const themeColors = {
-    background: isDarkMode ? 'rgba(33, 37, 41, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-    text: isDarkMode ? '#f8f9fa' : '#495057',
-    textMuted: isDarkMode ? '#adb5bd' : '#6c757d',
-    textSubtle: isDarkMode ? '#868e96' : '#9ca3af',
-    border: isDarkMode ? 'rgba(255, 255, 255, 0.125)' : 'rgba(0, 0, 0, 0.125)',
-    badge: isDarkMode ? '#495057' : '#f8f9fa',
-    badgeText: isDarkMode ? '#f8f9fa' : '#495057',
-    handle: isDarkMode ? '#495057' : '#dee2e6'
-  };
+  if (!object) return null;
 
   const renderDeviceLocationContent = (deviceLoc: GPSCoordinate) => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -171,39 +127,22 @@ const MobileTooltipComponent: React.FC<MobileTooltipProps> = ({
     const lastPosition = timestampDate ? formatLocationTime(timestampDate, timezone) : 'Never';
 
     return (
-      <div style={{ fontSize: '14px' }}>
-        {/* Coordinates */}
-        <div style={{ marginBottom: '8px', fontSize: '12px' }}>
-          <span style={{ color: themeColors.textMuted, marginRight: '6px' }}>Coordinates:</span>
-          <span style={{
-            color: themeColors.text,
-            fontFamily: 'monospace',
-            fontSize: '11px',
-            fontWeight: 500
-          }}>
+      <div className="flex flex-col gap-2 text-xs">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Coordinates:</span>
+          <span className="font-mono font-medium">
             {formatCoordinates(deviceLoc.latitude, deviceLoc.longitude)}
           </span>
         </div>
-
-        {/* Last Position and Accuracy */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <div style={{ fontSize: '12px' }}>
-            <span style={{ color: themeColors.textMuted, marginRight: '6px' }}>Last Position:</span>
-            <span style={{ color: themeColors.text }}>{lastPosition}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <span className="text-muted-foreground">Last Position: </span>
+            <span>{lastPosition}</span>
           </div>
           {deviceLoc.accuracy && (
-            <div>
-              <span style={{ fontSize: '12px', color: themeColors.textMuted, marginRight: '6px' }}>Accuracy:</span>
-              <span style={{
-                backgroundColor: themeColors.badge,
-                color: themeColors.badgeText,
-                padding: '2px 6px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 500
-              }}>
-                ±{Math.round(deviceLoc.accuracy)}m
-              </span>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">Accuracy:</span>
+              <Badge variant="secondary">±{Math.round(deviceLoc.accuracy)}m</Badge>
             </div>
           )}
         </div>
@@ -212,56 +151,33 @@ const MobileTooltipComponent: React.FC<MobileTooltipProps> = ({
   };
 
   const renderLiveLocationContent = (location: LiveLocation) => (
-    <div style={{ fontSize: '14px' }}>
-      {/* Vessel name and IMEI */}
-      <div style={{ marginBottom: '10px' }}>
-        <div style={{ fontWeight: 600, fontSize: '16px', color: themeColors.text, marginBottom: '4px' }}>
+    <div className="flex flex-col gap-2 text-xs">
+      <div>
+        <div className="text-base font-semibold">
           {anonymizeBoatName(location.boatName || 'Unknown')}
         </div>
-        <div style={{ fontSize: '13px', color: themeColors.textMuted }}>
-          {anonymizeImei(location.imei)}
-        </div>
+        <div className="text-muted-foreground">{anonymizeImei(location.imei)}</div>
       </div>
-
-      {/* Coordinates */}
-      <div style={{ marginBottom: '8px', fontSize: '12px' }}>
-        <span style={{ color: themeColors.textMuted, marginRight: '6px' }}>Coordinates:</span>
-        <span style={{
-          color: themeColors.text,
-          fontFamily: 'monospace',
-          fontSize: '11px',
-          fontWeight: 500
-        }}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">Coordinates:</span>
+        <span className="font-mono font-medium">
           {formatCoordinates(location.lat, location.lng)}
         </span>
       </div>
-
-      {/* Battery and Last Seen inline */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Battery:</span>
+          <Badge variant="secondary">{location.batteryState || 'Unknown'}</Badge>
+        </div>
         <div>
-          <span style={{ fontSize: '12px', color: themeColors.textMuted, marginRight: '6px' }}>Battery:</span>
-          <span style={{
-            backgroundColor: themeColors.badge,
-            color: themeColors.badgeText,
-            padding: '2px 6px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontWeight: 500
-          }}>
-            {location.batteryState || 'Unknown'}
+          <span className="text-muted-foreground">Last Position: </span>
+          <span>
+            {location.lastGpsTs ? formatLocationTime(location.lastGpsTs, location.timezone) : 'Never'}
           </span>
         </div>
-        <div style={{ fontSize: '12px' }}>
-          <span style={{ color: themeColors.textMuted, marginRight: '6px' }}>Last Position:</span>
-          <span style={{ color: themeColors.text }}>{location.lastGpsTs ? formatLocationTime(location.lastGpsTs, location.timezone) : 'Never'}</span>
-        </div>
       </div>
-
-      {/* Community if available */}
       {location.directCustomerName && (
-        <div style={{ fontSize: '12px', color: themeColors.textMuted }}>
-          {location.directCustomerName}
-        </div>
+        <div className="text-muted-foreground">{location.directCustomerName}</div>
       )}
     </div>
   );
@@ -270,328 +186,194 @@ const MobileTooltipComponent: React.FC<MobileTooltipProps> = ({
     const tripPoints = filteredTripById[tripData.tripId] || [];
     const firstPoint = tripPoints[0];
     const lastPoint = tripPoints[tripPoints.length - 1];
-    
-    const duration = firstPoint && lastPoint 
-      ? formatDuration(new Date(lastPoint.time).getTime() - new Date(firstPoint.time).getTime())
-      : 'Unknown';
-      
+    const duration =
+      firstPoint && lastPoint
+        ? formatDuration(new Date(lastPoint.time).getTime() - new Date(firstPoint.time).getTime())
+        : 'Unknown';
+
     return (
-      <div style={{ fontSize: '14px' }}>
-        {/* Vessel name */}
-        <div style={{ marginBottom: '10px' }}>
-          <div style={{ fontWeight: 600, fontSize: '16px', color: themeColors.text }}>
-            {anonymizeBoatName(firstPoint?.boatName || 'Unknown')}
-          </div>
+      <div className="flex flex-col gap-2 text-xs">
+        <div className="text-base font-semibold">
+          {anonymizeBoatName(firstPoint?.boatName || 'Unknown')}
         </div>
-        
-        {/* Started and Duration inline */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <span style={{ fontSize: '12px', color: themeColors.textMuted, marginRight: '6px' }}>Started:</span>
-            <span style={{ fontSize: '12px', color: themeColors.text }}>
-              {firstPoint ? formatTime(new Date(firstPoint.time)) : 'Unknown'}
-            </span>
+            <span className="text-muted-foreground">Started: </span>
+            <span>{firstPoint ? formatTime(new Date(firstPoint.time)) : 'Unknown'}</span>
           </div>
           <div>
-            <span style={{ fontSize: '12px', color: themeColors.textMuted, marginRight: '6px' }}>Duration:</span>
-            <span style={{ fontSize: '12px', color: themeColors.text }}>{duration}</span>
+            <span className="text-muted-foreground">Duration: </span>
+            <span>{duration}</span>
           </div>
         </div>
-        
-        {/* Ended if available */}
         {lastPoint && (
-          <div style={{ fontSize: '12px', color: themeColors.textSubtle }}>
-            Ended: {formatTime(new Date(lastPoint.time))}
-          </div>
+          <div className="text-muted-foreground">Ended: {formatTime(new Date(lastPoint.time))}</div>
         )}
       </div>
     );
   };
 
   const renderPointContent = (point: TripPoint) => (
-    <div style={{ fontSize: '14px' }}>
-      {/* Time and Vessel on same line */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <div style={{ flex: 1 }}>
-          <span style={{ fontWeight: 600, fontSize: '16px', color: themeColors.text }}>{formatTime(new Date(point.time))}</span>
-        </div>
-        <div style={{ fontSize: '13px', color: themeColors.textMuted }}>
+    <div className="flex flex-col gap-2 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-base font-semibold">{formatTime(new Date(point.time))}</span>
+        <span className="text-muted-foreground">
           {anonymizeBoatName(point.boatName || 'Unknown')}
-        </div>
+        </span>
       </div>
-      
-      {/* Speed and Heading inline */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
-        <div>
-          <span style={{ fontSize: '12px', color: themeColors.textMuted, marginRight: '6px' }}>Speed:</span>
-          <span style={{ 
-            backgroundColor: themeColors.badge, 
-            color: themeColors.badgeText,
-            padding: '2px 6px', 
-            borderRadius: '4px', 
-            fontSize: '12px',
-            fontWeight: 500
-          }}>
-            {formatSpeed(point.speed)}
-          </span>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Speed:</span>
+          <Badge variant="secondary">{formatSpeed(point.speed)}</Badge>
         </div>
         <div>
-          <span style={{ fontSize: '12px', color: themeColors.textMuted, marginRight: '6px' }}>Heading:</span>
-          <span style={{ fontSize: '12px', color: themeColors.text }}>
+          <span className="text-muted-foreground">Heading: </span>
+          <span>
             {point.heading.toFixed(0)}° {getDirectionFromHeading(point.heading)}
           </span>
         </div>
       </div>
-      
-      {/* Trip ID */}
-      <div style={{ fontSize: '12px', color: themeColors.textSubtle }}>
-        Trip: {point.tripId || 'Unknown'}
+      <div className="text-muted-foreground">Trip: {point.tripId || 'Unknown'}</div>
+    </div>
+  );
+
+  const renderGridContent = (gridData: { count: number; position?: [number, number] }) => (
+    <div className="flex flex-col gap-1.5 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Times visited:</span>
+          <Badge>{gridData.count}</Badge>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Cell size: </span>
+          <span>500×500m</span>
+        </div>
+      </div>
+      {selectedTripId && <div className="text-muted-foreground">Trip: {selectedTripId}</div>}
+    </div>
+  );
+
+  const renderWaypointContent = (waypoint: Waypoint) => (
+    <div className="flex flex-col gap-2 text-xs">
+      <div className="text-base font-semibold">{waypoint.name}</div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">{t('waypoints.tooltips.type')}:</span>
+        <Badge variant="secondary">{getWaypointTypeLabel(waypoint.type)}</Badge>
+      </div>
+      {waypoint.description && (
+        <div>
+          <span className="text-muted-foreground">{t('waypoints.tooltips.notes')}: </span>
+          <span>{waypoint.description}</span>
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">{t('waypoints.tooltips.location')}:</span>
+        <span className="font-mono font-medium">
+          {formatCoordinates(waypoint.coordinates.lat, waypoint.coordinates.lng)}
+        </span>
       </div>
     </div>
   );
 
-  const renderGridContent = (gridData: { count: number; position?: [number, number] }) => {
-    return (
-      <div style={{ fontSize: '13px' }}>
-        {/* Times visited and Cell size inline */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <div>
-            <span style={{ fontSize: '11px', color: themeColors.textMuted, marginRight: '4px' }}>Times visited:</span>
-            <span style={{ 
-              backgroundColor: '#007bff', 
-              color: 'white',
-              padding: '1px 4px', 
-              borderRadius: '3px', 
-              fontSize: '11px',
-              fontWeight: 500
-            }}>
-              {gridData.count}
-            </span>
-          </div>
-          <div>
-            <span style={{ fontSize: '11px', color: themeColors.textMuted, marginRight: '4px' }}>Cell size:</span>
-            <span style={{ fontSize: '11px', color: themeColors.text }}>500×500m</span>
-          </div>
-        </div>
-        
-        {/* Trip if available */}
-        {selectedTripId && (
-          <div style={{ fontSize: '11px', color: themeColors.textSubtle }}>
-            Trip: {selectedTripId}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderWaypointContent = (waypoint: Waypoint) => {
-    return (
-      <div style={{ fontSize: '14px' }}>
-        {/* Waypoint name */}
-        <div style={{ marginBottom: '10px' }}>
-          <div style={{ fontWeight: 600, fontSize: '16px', color: themeColors.text, marginBottom: '4px' }}>
-            {waypoint.name}
-          </div>
-        </div>
-
-        {/* Type badge */}
-        <div style={{ marginBottom: '8px' }}>
-          <span style={{ fontSize: '12px', color: themeColors.textMuted, marginRight: '6px' }}>
-            {t('waypoints.tooltips.type')}:
-          </span>
-          <span style={{
-            backgroundColor: themeColors.badge,
-            color: themeColors.badgeText,
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontWeight: 500
-          }}>
-            {getWaypointTypeLabel(waypoint.type)}
-          </span>
-        </div>
-
-        {/* Description if available */}
-        {waypoint.description && (
-          <div style={{ marginBottom: '8px', fontSize: '12px' }}>
-            <span style={{ color: themeColors.textMuted, marginRight: '6px' }}>
-              {t('waypoints.tooltips.notes')}:
-            </span>
-            <span style={{ color: themeColors.text }}>{waypoint.description}</span>
-          </div>
-        )}
-
-        {/* Coordinates */}
-        <div style={{ fontSize: '12px' }}>
-          <span style={{ color: themeColors.textMuted, marginRight: '6px' }}>
-            {t('waypoints.tooltips.location')}:
-          </span>
-          <span style={{
-            color: themeColors.text,
-            fontFamily: 'monospace',
-            fontSize: '11px',
-            fontWeight: 500
-          }}>
-            {formatCoordinates(waypoint.coordinates.lat, waypoint.coordinates.lng)}
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-  // Determine content based on object type
-  let content;
+  let content: React.ReactNode;
   let headerTitle = '';
-  let headerColor = '#28a745'; // default green
+  let dotColor = 'var(--primary)';
 
-  // Return null if no object
-  if (!object) {
-    return null;
-  }
-
-  // Waypoint - check early as it has specific properties
   if ('_id' in object && 'coordinates' in object && 'type' in object && 'name' in object) {
     const waypoint = object as Waypoint;
     content = renderWaypointContent(waypoint);
     headerTitle = waypoint.name;
-    headerColor = getWaypointColor(waypoint.type);
-  // Device location (non-PDS users) - check first as it's most specific
+    dotColor = getWaypointColorHex(waypoint.type);
   } else if ('latitude' in object && 'longitude' in object && 'timestamp' in object) {
     content = renderDeviceLocationContent(object as GPSCoordinate);
     headerTitle = 'My Location';
-    headerColor = '#dc3545'; // red, matching the button
-  } else if ('imei' in object && ('lat' in object && object.lat !== undefined && object.lat !== null) && ('lng' in object && object.lng !== undefined && object.lng !== null)) {
+    dotColor = 'var(--destructive)';
+  } else if (
+    'imei' in object &&
+    'lat' in object &&
+    object.lat !== undefined &&
+    object.lat !== null &&
+    'lng' in object &&
+    object.lng !== undefined &&
+    object.lng !== null
+  ) {
     content = renderLiveLocationContent(object as LiveLocation);
     headerTitle = 'Live Location';
-    headerColor = '#dc3545'; // red, matching the button
+    dotColor = 'var(--destructive)';
   } else if ('tripId' in object && 'path' in object && object.tripId && object.path) {
-    content = renderTripContent(object as unknown as { tripId: string; path: number[][]; name?: string });
+    content = renderTripContent(
+      object as unknown as { tripId: string; path: number[][]; name?: string }
+    );
     headerTitle = 'Fishing Trip';
-    headerColor = '#007bff'; // blue
-  } else if ('time' in object && 'latitude' in object && 'longitude' in object && 'speed' in object && object.time) {
+    dotColor = 'var(--primary)';
+  } else if (
+    'time' in object &&
+    'latitude' in object &&
+    'longitude' in object &&
+    'speed' in object &&
+    object.time
+  ) {
     content = renderPointContent(object as unknown as TripPoint);
     headerTitle = 'GPS Position';
-    headerColor = '#ffc107'; // yellow/orange
+    dotColor = 'var(--chart-2)';
   } else if ('count' in object && object.count) {
     content = renderGridContent(object);
     headerTitle = 'Visited Location';
-    headerColor = '#17a2b8'; // info blue
+    dotColor = 'var(--primary)';
   } else {
     return null;
   }
 
   return (
-    <>
-      {/* Bottom Sheet - wider and more accessible with drag effect */}
-      <div 
-        ref={tooltipRef}
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: '5%',
-          right: '5%',
-          width: '90%',
-          backgroundColor: themeColors.background,
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          borderTopLeftRadius: '16px',
-          borderTopRightRadius: '16px',
-          boxShadow: isDarkMode 
-            ? '0 -4px 25px rgba(0, 0, 0, 0.6)' 
-            : '0 -4px 25px rgba(0, 0, 0, 0.2)',
-          zIndex: 10000,
-          maxHeight: '60vh',
-          overflow: 'hidden',
-          border: `1px solid ${themeColors.border}`,
-          transform: `translateY(${dragOffset}px) ${isClosing ? 'translateY(100%)' : ''}`,
-          transition: isDragging.current ? 'none' : isClosing 
-            ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
-            : 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          cursor: 'grab',
-          touchAction: 'none'
-        }}
-      >
-        {/* Drag handle - more prominent */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          paddingTop: '12px', 
-          paddingBottom: '8px',
-          cursor: 'grab'
-        }}>
-          <div style={{
-            width: '40px',
-            height: '4px',
-            backgroundColor: themeColors.handle,
-            borderRadius: '3px',
-            opacity: 0.6
-          }} />
-        </div>
-        
-        {/* Header with close button */}
-        <div style={{
-          padding: '8px 16px 12px',
-          borderBottom: `1px solid ${themeColors.border}`,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{
-              width: '6px',
-              height: '6px',
-              backgroundColor: headerColor,
-              borderRadius: '50%',
-              marginRight: '6px'
-            }} />
-            <h6 style={{ margin: 0, fontWeight: 'bold', fontSize: '16px', color: themeColors.text }}>
-              {headerTitle}
-            </h6>
-          </div>
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClose();
-            }}
-            onTouchEnd={(e) => {
-              e.stopPropagation();
-              handleClose();
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '20px',
-              color: themeColors.textMuted,
-              cursor: 'pointer',
-              padding: '4px 6px',
-              borderRadius: '6px',
-              lineHeight: 1,
-              minHeight: '32px',
-              minWidth: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            ×
-          </button>
-        </div>
-        
-        {/* Content - improved spacing */}
-        <div style={{ 
-          padding: '12px 16px 16px',
-          maxHeight: 'calc(60vh - 80px)',
-          overflowY: 'auto'
-        }}>
-          {content}
-        </div>
+    <div
+      ref={tooltipRef}
+      onClick={(e) => e.stopPropagation()}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="fixed inset-x-[5%] bottom-0 z-40 max-h-[60vh] overflow-hidden rounded-t-2xl border bg-card/95 text-card-foreground shadow-xl backdrop-blur touch-none"
+      style={{
+        transform: `translateY(${dragOffset}px) ${isClosing ? 'translateY(100%)' : ''}`,
+        transition: isDragging.current
+          ? 'none'
+          : 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
+    >
+      {/* Drag handle */}
+      <div className="flex justify-center pt-3 pb-2">
+        <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
       </div>
-    </>
+
+      {/* Header */}
+      <div className="flex items-center justify-between border-b px-4 pb-2.5">
+        <div className="flex items-center gap-2">
+          <span
+            className="size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: dotColor }}
+          />
+          <h6 className="text-sm font-semibold">{headerTitle}</h6>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('common.close')}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClose();
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+            handleClose();
+          }}
+        >
+          <XIcon />
+        </Button>
+      </div>
+
+      {/* Content */}
+      <div className="max-h-[calc(60vh-80px)] overflow-y-auto px-4 py-3">{content}</div>
+    </div>
   );
 };
 
-export default MobileTooltipComponent; 
+export default MobileTooltipComponent;

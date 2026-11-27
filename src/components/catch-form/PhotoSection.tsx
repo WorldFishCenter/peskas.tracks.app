@@ -1,13 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconCamera, IconPhoto, IconX } from '@tabler/icons-react';
+import { CameraIcon, ImageIcon, XIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface PhotoSectionProps {
   catchEntryId: string;
   photos: string[];
   fishGroup: string;
   loading: boolean;
-  isDarkMode: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileUpload: (catchEntryId: string, file: File) => void;
   onRemovePhoto: (catchEntryId: string, photoIndex: number) => void;
@@ -19,68 +26,53 @@ const PhotoSection: React.FC<PhotoSectionProps> = ({
   photos,
   fishGroup,
   loading,
-  isDarkMode,
   fileInputRef,
   onFileUpload,
   onRemovePhoto,
-  onSetRef
+  onSetRef,
 }) => {
   const { t } = useTranslation();
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
-  const handleFullSizeView = (photo: string) => {
-    const modal = document.createElement('div');
-    modal.className = 'modal d-block';
-    modal.style.backgroundColor = isDarkMode ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.6)';
-    modal.innerHTML = `
-      <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-          <div class="modal-body p-0">
-            <img src="${photo}" class="img-fluid w-100" alt="${t('catch.photoOf')} ${t(`catch.fishGroups.${fishGroup.replace(/[^a-zA-Z]/g, '')}`)}" />
-          </div>
-        </div>
-      </div>
-    `;
-    modal.onclick = () => document.body.removeChild(modal);
-    document.body.appendChild(modal);
-  };
+  const fishGroupLabel = t(`catch.fishGroups.${fishGroup.replace(/[^a-zA-Z]/g, '')}`);
 
   return (
-    <div className="row g-2 mb-3">
-      {/* Camera Button (for taking new photos) */}
-      <div className="col-6">
-        <button
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2">
+        <Button
           type="button"
-          className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
+          variant="outline"
+          className="h-11 w-full"
           onClick={() => {
-            const cameraInput = document.getElementById(`camera-input-${catchEntryId}`) as HTMLInputElement;
+            const cameraInput = document.getElementById(
+              `camera-input-${catchEntryId}`
+            ) as HTMLInputElement;
             cameraInput?.click();
           }}
           disabled={loading || photos.length >= 3}
-          style={{ minHeight: '50px', fontSize: '14px', padding: '8px 12px' }}
         >
-          <IconCamera size={20} className="me-1" />
+          <CameraIcon data-icon="inline-start" />
           <span>{t('catch.takePhoto')}</span>
-        </button>
-      </div>
-      
-      {/* Gallery Button (for selecting existing photos) */}
-      <div className="col-6">
-        <button
+        </Button>
+
+        <Button
           type="button"
-          className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
+          variant="outline"
+          className="h-11 w-full"
           onClick={() => {
-            const galleryInput = document.getElementById(`gallery-input-${catchEntryId}`) as HTMLInputElement;
+            const galleryInput = document.getElementById(
+              `gallery-input-${catchEntryId}`
+            ) as HTMLInputElement;
             galleryInput?.click();
           }}
           disabled={loading || photos.length >= 3}
-          style={{ minHeight: '50px', fontSize: '14px', padding: '8px 12px' }}
         >
-          <IconPhoto size={20} className="me-1" />
+          <ImageIcon data-icon="inline-start" />
           <span>{t('catch.gallery')}</span>
-        </button>
+        </Button>
       </div>
-      
-      {/* Hidden camera input (capture=environment for direct camera access) */}
+
+      {/* Hidden camera input */}
       <input
         id={`camera-input-${catchEntryId}`}
         ref={(el) => {
@@ -92,73 +84,82 @@ const PhotoSection: React.FC<PhotoSectionProps> = ({
         type="file"
         accept="image/*"
         capture="environment"
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) {
             onFileUpload(catchEntryId, file);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
           }
         }}
       />
-      
-      {/* Hidden gallery input (no capture attribute for gallery access) */}
+
+      {/* Hidden gallery input */}
       <input
         id={`gallery-input-${catchEntryId}`}
         type="file"
         accept="image/*"
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) {
             onFileUpload(catchEntryId, file);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
           }
         }}
       />
-      
+
       {/* Photo Preview Grid */}
       {photos.length > 0 ? (
-        <div className="row g-2 mb-3">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {photos.map((photo, photoIndex) => (
-            <div key={photoIndex} className="col-4 col-sm-3 col-md-2">
-              <div className="position-relative">
-                <img
-                  src={photo}
-                  alt={`${t('catch.photoOf')} ${t(`catch.fishGroups.${fishGroup.replace(/[^a-zA-Z]/g, '')}`)}`}
-                  className="img-fluid rounded"
-                  style={{
-                    width: '100%',
-                    height: '80px',
-                    objectFit: 'cover',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => handleFullSizeView(photo)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-danger btn-sm position-absolute top-0 end-0 m-1 p-1 lh-1"
-                  onClick={() => onRemovePhoto(catchEntryId, photoIndex)}
-                  disabled={loading}
-                  title={t('catch.removePhoto')}
-                  style={{ 
-                    width: '32px', 
-                    height: '32px',
-                    minWidth: '32px',
-                    minHeight: '32px'
-                  }}
-                >
-                  <IconX size={14} />
-                </button>
-              </div>
+            <div key={photoIndex} className="relative overflow-hidden rounded-lg border">
+              <img
+                src={photo}
+                alt={`${t('catch.photoOf')} ${fishGroupLabel}`}
+                className="h-20 w-full cursor-pointer object-cover"
+                onClick={() => setPreviewPhoto(photo)}
+              />
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon-xs"
+                className="absolute top-1 right-1"
+                onClick={() => onRemovePhoto(catchEntryId, photoIndex)}
+                disabled={loading}
+                title={t('catch.removePhoto')}
+                aria-label={t('catch.removePhoto')}
+              >
+                <XIcon />
+              </Button>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-muted small">
-          {t('catch.noPhotosAdded')}
-        </div>
+        <div className="text-xs text-muted-foreground">{t('catch.noPhotosAdded')}</div>
       )}
+
+      {/* Full-size Photo Preview Dialog */}
+      <Dialog
+        open={Boolean(previewPhoto)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewPhoto(null);
+        }}
+      >
+        <DialogContent className="p-2 sm:max-w-2xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{`${t('catch.photoOf')} ${fishGroupLabel}`}</DialogTitle>
+            <DialogDescription>{fishGroupLabel}</DialogDescription>
+          </DialogHeader>
+          {previewPhoto && (
+            <img
+              src={previewPhoto}
+              alt={`${t('catch.photoOf')} ${fishGroupLabel}`}
+              className="max-h-[80vh] w-full rounded-lg object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

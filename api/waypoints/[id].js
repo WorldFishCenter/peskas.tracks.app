@@ -1,8 +1,6 @@
 import { ObjectId } from 'mongodb';
-import { identifyCaller } from '../_utils/requireFisher.js';
-import { getDatabase } from '../_utils/mongodb.js';
-import { corsMiddleware } from '../_utils/cors.js';
-import { rateLimitMiddleware, RateLimitPresets } from '../_utils/rateLimit.js';
+import { createEndpoint, ValidationError, NotFoundError } from '../_utils/endpoint.js';
+import { RateLimitPresets } from '../_utils/rateLimit.js';
 import {
   sanitizeInput,
   validateString,
@@ -10,115 +8,66 @@ import {
   validateEnum,
   isValidObjectId
 } from '../_utils/validation.js';
-import { handleError, ValidationError, NotFoundError } from '../_utils/errorHandler.js';
+import { userIdCriteria } from '../_utils/fisherIdentity.js';
 
-// Serverless function handler for individual waypoint operations
-export default async function handler(req, res) {
-  // Handle CORS
-  if (corsMiddleware(req, res)) {
-    return; // OPTIONS request handled
-  }
+const VALID_WAYPOINT_TYPES = [
+  'port',
+  'anchorage',
+  'fishing_ground',
+  'favorite_spot',
+  'shallow_reef',
+  'other'
+];
 
-  // Who is calling? Recorded, not required: step 3 of
-  // docs/API-AUTH-PLAN.md. Step 4 turns a null answer into a 401 and takes
-  // the identity from here instead of from the query string.
-  await identifyCaller(req);
-
-  try {
+export default createEndpoint(
+  {
+    methods: ['PUT', 'DELETE'],
+    rateLimit: RateLimitPresets.WRITE
+  },
+  async (req, res, { db }) => {
     const { id } = req.query;
 
-    // Validate waypoint ID
     if (!id) {
       throw new ValidationError('Waypoint ID is required');
     }
-
     if (!isValidObjectId(id)) {
       throw new ValidationError('Invalid waypoint ID format');
     }
 
-    // Handle PUT request - Update a waypoint
-    if (req.method === 'PUT') {
-      // Apply rate limiting
-      const rateLimit = rateLimitMiddleware(RateLimitPresets.WRITE)(req, res);
-      if (rateLimit.rateLimited) {
-        return res.status(rateLimit.response.status).json(rateLimit.response.body);
-      }
+    const waypointId = new ObjectId(id);
+    const waypointsCollection = db.collection('waypoints');
 
-      // Sanitize input
+    if (req.method === 'PUT') {
       const sanitizedBody = sanitizeInput(req.body);
       const { userId, name, description, coordinates, type } = sanitizedBody;
+      const ownerQuery = userIdCriteria(userId);
 
-      // Validate userId
-      const validatedUserId = validateString(userId, {
-        minLength: 1,
-        maxLength: 100,
-        required: true
-      });
-
-      // Connect to MongoDB
-      const db = await getDatabase();
-      const waypointsCollection = db.collection('waypoints');
-
-      // Handle userId that might be a string (e.g., 'admin') or a valid ObjectId
-      // This ensures consistency with Express server and handles both storage formats
-      let userIdQuery;
-      if (isValidObjectId(validatedUserId)) {
-        // Query for both ObjectId and string formats to handle legacy data
-        userIdQuery = {
-          $or: [
-            { userId: new ObjectId(validatedUserId) },
-            { userId: validatedUserId }
-          ]
-        };
-      } else {
-        // For non-ObjectId userIds (e.g., 'admin'), query as string only
-        userIdQuery = { userId: validatedUserId };
-      }
-
-      // Verify waypoint belongs to user before updating
       const existingWaypoint = await waypointsCollection.findOne({
-        _id: new ObjectId(id),
-        ...userIdQuery
+        _id: waypointId,
+        ...ownerQuery
       });
 
       if (!existingWaypoint) {
         throw new NotFoundError('Waypoint not found or access denied');
       }
 
-      // Build update object
-      const updateDoc = {
-        $set: {
-          updatedAt: new Date()
-        }
-      };
+      const updateDoc = { $set: { updatedAt: new Date() } };
 
-      // Validate and add optional fields
       if (name !== undefined) {
-        updateDoc.$set.name = validateString(name, {
-          minLength: 1,
-          maxLength: 200,
-          required: true
-        });
+        updateDoc.$set.name = validateString(name, { minLength: 1, maxLength: 200, required: true });
       }
-
       if (description !== undefined) {
-        updateDoc.$set.description = validateString(description, {
-          maxLength: 1000
-        });
+        updateDoc.$set.description = validateString(description, { maxLength: 1000 });
       }
-
       if (coordinates !== undefined) {
         updateDoc.$set.coordinates = validateCoordinates(coordinates);
       }
-
       if (type !== undefined) {
-        const validTypes = ['port', 'anchorage', 'fishing_ground', 'favorite_spot', 'shallow_reef', 'other'];
-        updateDoc.$set.type = validateEnum(type, validTypes, true);
+        updateDoc.$set.type = validateEnum(type, VALID_WAYPOINT_TYPES, true);
       }
 
-      // Update waypoint
       const result = await waypointsCollection.updateOne(
-        { _id: new ObjectId(id), ...userIdQuery },
+        { _id: waypointId, ...ownerQuery },
         updateDoc
       );
 
@@ -126,73 +75,20 @@ export default async function handler(req, res) {
         throw new NotFoundError('Waypoint not found or access denied');
       }
 
-      // Fetch and return updated waypoint
-      const updatedWaypoint = await waypointsCollection.findOne({ _id: new ObjectId(id) });
-
+      const updatedWaypoint = await waypointsCollection.findOne({ _id: waypointId });
       return res.json(updatedWaypoint);
     }
 
-    // Handle DELETE request - Delete a waypoint
-    else if (req.method === 'DELETE') {
-      // Apply rate limiting
-      const rateLimit = rateLimitMiddleware(RateLimitPresets.WRITE)(req, res);
-      if (rateLimit.rateLimited) {
-        return res.status(rateLimit.response.status).json(rateLimit.response.body);
-      }
-
-      const { userId } = req.query;
-
-      // Validate userId
-      const validatedUserId = validateString(userId, {
-        minLength: 1,
-        maxLength: 100,
-        required: true
-      });
-
-      // Connect to MongoDB
-      const db = await getDatabase();
-      const waypointsCollection = db.collection('waypoints');
-
-      // Handle userId that might be a string (e.g., 'admin') or a valid ObjectId
-      // This ensures consistency with Express server and handles both storage formats
-      let userIdQuery;
-      if (isValidObjectId(validatedUserId)) {
-        // Query for both ObjectId and string formats to handle legacy data
-        userIdQuery = {
-          $or: [
-            { userId: new ObjectId(validatedUserId) },
-            { userId: validatedUserId }
-          ]
-        };
-      } else {
-        // For non-ObjectId userIds (e.g., 'admin'), query as string only
-        userIdQuery = { userId: validatedUserId };
-      }
-
-      // Delete only if waypoint belongs to user
-      const result = await waypointsCollection.deleteOne({
-        _id: new ObjectId(id),
-        ...userIdQuery
-      });
-
-      if (result.deletedCount === 0) {
-        throw new NotFoundError('Waypoint not found or access denied');
-      }
-
-      return res.json({ success: true, message: 'Waypoint deleted successfully' });
-    }
-
-    // Method not allowed
-    else {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-  } catch (error) {
-    handleError(res, error, {
-      endpoint: `/api/waypoints/${req.query.id}`,
-      method: req.method,
-      query: req.query,
-      body: req.method === 'PUT' ? sanitizeInput(req.body) : undefined
+    const ownerQuery = userIdCriteria(req.query.userId);
+    const result = await waypointsCollection.deleteOne({
+      _id: waypointId,
+      ...ownerQuery
     });
+
+    if (result.deletedCount === 0) {
+      throw new NotFoundError('Waypoint not found or access denied');
+    }
+
+    return res.json({ success: true, message: 'Waypoint deleted successfully' });
   }
-}
+);

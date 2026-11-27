@@ -1,22 +1,13 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import posthog from 'posthog-js'
-import { PostHogProvider } from '@posthog/react'
-import App from './App'
-// Import Tabler CSS from node_modules
-import '@tabler/core/dist/css/tabler.min.css'
-// Import Tabler themes CSS for theme customization
-import '@tabler/core/dist/css/tabler-themes.min.css'
-// Import our custom styles after Tabler
-import './styles/main.scss'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import posthog from 'posthog-js';
+import { PostHogProvider } from '@posthog/react';
+import App from './App';
+import './index.css';
 // The Peskas logo's colours, light and dark (synced from peskas-context/brand).
-import './components/peskas-logo.css'
-
-// Initialize Sentry error monitoring
-import { initSentry } from './lib/sentry'
-
-// Initialize offline support
-import { initializeOfflineSupport, registerServiceWorkerForOfflineSupport, unregisterServiceWorkers } from './utils/initializeOfflineSupport'
+import './components/peskas-logo.css';
+import { initSentry } from './lib/sentry';
+import { catchOutbox } from './api/catchOutbox';
 
 // Initialize Sentry as early as possible
 initSentry();
@@ -31,41 +22,44 @@ if (posthogToken) {
   });
 }
 
-// Apply the specific Tabler theme settings you requested
-const html = document.documentElement;
-html.setAttribute('data-bs-theme-primary', 'cyan');
-html.setAttribute('data-bs-theme-base', 'neutral');
-html.setAttribute('data-bs-theme-radius', '1.5');
-
-// Initialize offline support and service worker
-const initializeApp = async () => {
+// Remove any service worker holding this origin, and the caches it filled.
+// Used in development, where a worker left over from a production build serves
+// a precache of hashed filenames the dev server has never heard of.
+const unregisterServiceWorkers = async () => {
+  if (!('serviceWorker' in navigator)) return;
   try {
-    if (import.meta.env.PROD) {
-      // Register service worker first
-      await registerServiceWorkerForOfflineSupport();
-    } else {
-      // Not in development. `vercel dev` serves the built dist/ alongside
-      // Vite, so /sw.js answers with the service worker from the last
-      // production build. Registering it here puts that worker in charge of
-      // the dev page, where it tries to serve a precache of hashed filenames
-      // the dev server has never heard of — the console fills with "Failed to
-      // fetch" and the page is served from a stale build.
-      //
-      // A worker registered by an earlier run stays bound to this origin, so
-      // clear any that is already there rather than only declining to add one.
-      await unregisterServiceWorkers();
-    }
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    if (registrations.length === 0) return;
 
-    // Then initialize offline storage
-    await initializeOfflineSupport();
-    
-    console.log('🚀 App initialization complete');
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
   } catch (error) {
-    console.error('❌ App initialization failed:', error);
+    console.warn('Could not remove existing service workers:', error);
   }
 };
 
-// Start initialization
+const initializeApp = async () => {
+  try {
+    if (import.meta.env.PROD) {
+      if ('serviceWorker' in navigator) {
+        await navigator.serviceWorker.register('/sw.js');
+      }
+    } else {
+      // Not in development. `vercel dev` serves the built dist/ alongside
+      // Vite, so /sw.js answers with the service worker from the last
+      // production build. Clear any worker registered by an earlier run.
+      await unregisterServiceWorkers();
+    }
+
+    catchOutbox.start();
+  } catch (error) {
+    console.error('App initialization failed:', error);
+  }
+};
+
 initializeApp();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -73,5 +67,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <PostHogProvider client={posthog}>
       <App />
     </PostHogProvider>
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);

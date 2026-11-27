@@ -41,6 +41,40 @@ export function sanitizeIdentifiers({ imei, userId, username }) {
 }
 
 /**
+ * MongoDB criteria matching a stored userId whether it was written as an
+ * ObjectId or as a plain string. See docs/adr/0001.
+ *
+ * @param {string} userId
+ * @returns {Object}
+ */
+export function userIdCriteria(userId) {
+  const validated = validateString(userId, IDENTIFIER_RULES);
+
+  if (isValidObjectId(validated)) {
+    return { $or: [{ userId: new ObjectId(validated) }, { userId: validated }] };
+  }
+
+  return { userId: validated };
+}
+
+/**
+ * Parse a route userId parameter into a MongoDB ObjectId, failing with
+ * ValidationError (400) instead of a BSON crash (500) on malformed input.
+ *
+ * @param {string} userId
+ * @returns {ObjectId}
+ */
+export function parseUserObjectId(userId) {
+  if (!userId) {
+    throw new ValidationError('User ID is required');
+  }
+  if (!isValidObjectId(userId)) {
+    throw new ValidationError('Invalid user ID format');
+  }
+  return new ObjectId(userId);
+}
+
+/**
  * Resolve explicit identifiers into the criteria selecting that fisher's
  * records. IMEI wins when present, then userId, then username.
  *
@@ -65,11 +99,7 @@ export async function resolveOwnerCriteria({ imei, userId, username }, usersColl
 
     // Both storage forms are live in the collection, so match either. Querying
     // only the parsed form silently hides records written as strings.
-    if (isValidObjectId(userId)) {
-      return { $or: [{ userId: new ObjectId(userId) }, { userId }] };
-    }
-
-    return { userId };
+    return userIdCriteria(userId);
   }
 
   if (username) {
@@ -96,6 +126,83 @@ export function resolveIdentifierCriteria(identifier) {
 
   return {
     $or: [{ imei: identifier }, { username: identifier }, { boatName: identifier }],
+  };
+}
+
+/**
+ * Resolve a fisher's community from an identifier that may be an IMEI or a
+ * self-registered fisher's username. Returns null when the fisher is unknown
+ * or has no Community set.
+ *
+ * @param {string} identifier
+ * @param {import('mongodb').Collection} usersCollection
+ * @returns {Promise<string|null>}
+ */
+export async function findFisherCommunity(identifier, usersCollection) {
+  if (!identifier) return null;
+
+  const user = await usersCollection.findOne({
+    $or: [{ IMEI: identifier }, { username: identifier }],
+  });
+
+  return user?.Community || null;
+}
+
+/**
+ * Resolve fisher metadata and admin anonymisation for write endpoints
+ * (catch-events, feedback, waypoints) in one place.
+ *
+ * When a verified session token is present, admin status comes from the token's
+ * role rather than the caller-supplied body flag. When no token is present
+ * (Step 3 of docs/API-AUTH-PLAN.md), falls back to the body flag so legacy
+ * clients keep working until Step 4 enforcement turns on.
+ *
+ * @param {object} params
+ * @param {{id: string, role: string}|null} [params.caller]
+ * @param {string|null} [params.userId]
+ * @param {string|null} [params.imei]
+ * @param {string|null} [params.username]
+ * @param {boolean} [params.isAdminFlag]
+ * @param {import('mongodb').Collection} usersCollection
+ */
+export async function resolveWriteContext(
+  { caller = null, userId = null, imei = null, username = null, isAdminFlag = false },
+  usersCollection
+) {
+  const isAdminSubmission = caller ? caller.role === 'admin' : isAdminFlag === true;
+
+  let user = null;
+  let userIdForStorage = userId || null;
+
+  if (userId) {
+    if (isValidObjectId(userId)) {
+      const objectId = new ObjectId(userId);
+      user = await findUserById(userId, usersCollection);
+      userIdForStorage = objectId;
+    } else {
+      user = await findUserById(userId, usersCollection);
+      userIdForStorage = userId;
+    }
+  } else {
+    if (imei) {
+      user = await usersCollection.findOne({ IMEI: imei });
+    }
+    if (!user && username) {
+      user = await usersCollection.findOne({ username });
+    }
+  }
+
+  const resolvedUserIdString = user?._id ? user._id.toString() : null;
+
+  return {
+    user,
+    isAdminSubmission,
+    userIdForStorage,
+    userIdString: resolvedUserIdString || (isAdminSubmission ? 'admin' : null),
+    imei: isAdminSubmission ? 'admin' : (imei || null),
+    username: isAdminSubmission ? 'admin' : (username || user?.username || null),
+    boatName: isAdminSubmission ? 'admin' : (user?.Boat || user?.username || null),
+    community: isAdminSubmission ? 'admin' : (user?.Community || null),
   };
 }
 

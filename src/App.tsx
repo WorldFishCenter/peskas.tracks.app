@@ -7,19 +7,22 @@ import Profile from './pages/Profile';
 import Feedback from './pages/Feedback';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from '@/components/theme-provider';
+import { Spinner } from '@/components/ui/spinner';
 import './i18n';
-import './styles/main.scss';
 
 // Protected route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
 
-  // If still loading auth state, show nothing
   if (loading) {
-    return <div className="page-center"><div className="spinner-border text-primary" role="status"></div></div>;
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-background">
+        <Spinner className="size-6 text-primary" />
+      </div>
+    );
   }
 
-  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -70,9 +73,11 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ThemeProvider defaultTheme="light" storageKey="theme">
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

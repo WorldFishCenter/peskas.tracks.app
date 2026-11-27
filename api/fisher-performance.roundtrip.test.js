@@ -126,6 +126,18 @@ describe('comparing against the community', () => {
 
     expect(result.body.metrics.cpue_kg_per_hour.comparisonAvg).toBe(10);
     expect(result.body.comparison.type).toBe('community');
+    expect(result.body.comparison.hasData).toBe(true);
+    expect(result.body.comparison.basedOn).toBe('1 fishers in Fuji');
+  });
+
+  it('resolves community comparisons for a self-registered fisher keyed by username', async () => {
+    await db.collection('users').insertOne({ username: 'asha', IMEI: null, Community: 'Fuji' });
+
+    const result = await performanceFor('asha', { compareWith: 'community' });
+
+    expect(result.status).toBe(200);
+    expect(result.body.comparison.hasData).toBe(true);
+    expect(result.body.comparison.basedOn).toBe('2 fishers in Fuji');
   });
 });
 

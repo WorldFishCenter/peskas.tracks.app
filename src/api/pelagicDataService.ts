@@ -1,12 +1,12 @@
 import { format, addDays, subDays, isToday, differenceInHours } from 'date-fns';
-import type { Trip, TripPoint, LiveLocation } from '../types';
+import type { Trip, TripPoint, LiveLocation, VesselInsights } from '../types';
 import { apiFetch, type QueryParams } from './httpClient';
 import { isDemoMode } from '../utils/demoData';
 import { fetchDemoTripPoints, fetchDemoLiveLocations } from './demoTracksService';
 
 // Simple request cache to avoid repeated API calls with LRU eviction
 const requestCache = new Map<string, { data: unknown; timestamp: number; expiry: number }>();
-const MAX_CACHE_SIZE = 50; // Maximum cache entries to prevent memory leaks
+const MAX_CACHE_SIZE = 50;
 
 // Fleet-wide trip activity for the vessel picker; see fetchFleetTripActivity.
 // Kept apart from requestCache so it holds the small per-vessel summary rather
@@ -14,40 +14,30 @@ const MAX_CACHE_SIZE = 50; // Maximum cache entries to prevent memory leaks
 let fleetActivityCache: { data: FleetTripActivity; expiry: number } | null = null;
 let fleetActivityRequest: Promise<FleetTripActivity> | null = null;
 
-// Dynamic cache duration based on data recency
-const getCacheDuration = (dateTo: Date): number => {
-  const now = new Date();
-  const hoursFromNow = differenceInHours(now, dateTo);
+/** Canonical trip-distance multiplier over straight-line max range. */
+const TRIP_DISTANCE_RANGE_FACTOR = 1.2;
 
-  if (isToday(dateTo)) {
-    return 1 * 60 * 1000; // 1 minute for today's data
-  } else if (hoursFromNow < 24) {
-    return 3 * 60 * 1000; // 3 minutes for last 24 hours
-  } else {
-    return 10 * 60 * 1000; // 10 minutes for historical data
-  }
+const getCacheDuration = (dateTo: Date): number => {
+  const hoursFromNow = differenceInHours(new Date(), dateTo);
+  if (isToday(dateTo)) return 1 * 60 * 1000;
+  if (hoursFromNow < 24) return 3 * 60 * 1000;
+  return 10 * 60 * 1000;
 };
 
-/**
- * Clear all cached data (useful for manual refresh)
- */
+/** Clear all cached movement data (used by manual refresh). */
 export const clearCache = (): void => {
-  const size = requestCache.size;
   requestCache.clear();
   fleetActivityCache = null;
-  console.log(`🗑️ Cleared ${size} cached entries`);
 };
 
-// Cache utility functions
 const getCacheKey = (dateFrom: Date, dateTo: Date, imeis?: string[], extra?: string): string => {
   const dateRange = `${format(dateFrom, 'yyyy-MM-dd')}-${format(dateTo, 'yyyy-MM-dd')}`;
   const imeiStr = imeis?.join(',') || 'no-imeis';
   return `${dateRange}:${imeiStr}${extra ? `:${extra}` : ''}`;
 };
 
-const getGenericCacheKey = (operation: string, params: unknown): string => {
-  return `${operation}:${JSON.stringify(params || {})}`;
-};
+const getGenericCacheKey = (operation: string, params: unknown): string =>
+  `${operation}:${JSON.stringify(params || {})}`;
 
 const getCachedData = <T>(key: string): T | null => {
   const cached = requestCache.get(key);
@@ -61,7 +51,6 @@ const getCachedData = <T>(key: string): T | null => {
 };
 
 const setCachedData = (key: string, data: unknown, cacheDuration: number): void => {
-  // Implement LRU eviction: remove oldest entry if cache is full
   if (requestCache.size >= MAX_CACHE_SIZE) {
     let oldestKey: string | null = null;
     let oldestTime = Infinity;
@@ -84,7 +73,6 @@ const setCachedData = (key: string, data: unknown, cacheDuration: number): void 
     timestamp,
     expiry: timestamp + cacheDuration
   });
-  console.log(`📋 Cache SET (duration: ${cacheDuration / 1000}s)`);
 };
 
 /** Pelagic's historical trips and points, through our server, which holds the PDS token. */
@@ -107,69 +95,39 @@ export interface PointsFilter extends TripsFilter {
   includeErrant?: boolean;
 }
 
+/** How often one vessel went to sea over the recent window. */
+export interface VesselTripActivity {
+  trips: number;
+  /** When the most recent of those trips ended, as ISO 8601. */
+  lastTripEnd: string;
+}
+
+/** Trip activity keyed by IMEI. Vessels with no trips have no entry. */
+export type FleetTripActivity = Record<string, VesselTripActivity>;
+
+/** The window the vessel picker counts trips over. */
+export const TRIP_ACTIVITY_DAYS = 90;
+const TRIP_ACTIVITY_CACHE_MS = 30 * 60 * 1000;
+
+/** Complete, internally consistent vessel-tracks snapshot for one query. */
+export interface VesselTracksSnapshot {
+  trips: Trip[];
+  tripPoints: TripPoint[];
+  tripById: Record<string, TripPoint[]>;
+  liveLocations: LiveLocation[];
+  insights: VesselInsights;
+}
+
 /**
- * Fetch trips metadata directly from Pelagic Data API /v1/trips endpoint
- * Returns trip summaries without all GPS points (more efficient for listing trips)
+ * Movement seam: everything needed to obtain raw trip points, trip summaries,
+ * live locations, and fleet activity. Two production adapters satisfy it
+ * (Pelagic HTTP and frozen demo snapshot) plus in-memory adapters in tests.
  */
-export const fetchTripsFromAPI = async (filter: TripsFilter): Promise<Trip[]> => {
-  // The demo has no trips endpoint to ask; its trips are built from its points.
-  if (isDemoMode()) {
-    return fetchTrips(filter);
-  }
-
-  // Check cache first
-  const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'trips');
-  const cachedData = getCachedData<Trip[]>(cacheKey);
-  if (cachedData) {
-    return cachedData;
-  }
-
-  // Fix timezone ambiguity: Add buffer day for "today" queries
-  const adjustedDateTo = isToday(filter.dateTo) ? addDays(filter.dateTo, 1) : filter.dateTo;
-
-  const dateFrom = format(filter.dateFrom, 'yyyy-MM-dd');
-  const dateTo = format(adjustedDateTo, 'yyyy-MM-dd');
-
-  console.log(`📅 Fetching trips metadata: ${dateFrom} to ${dateTo}${isToday(filter.dateTo) ? ' (today+1 buffer)' : ''}`);
-
-  try {
-    const response = await fetchPdsHistory(`trips/${dateFrom}/${dateTo}`, {
-      imeis: commaList(filter.imeis),
-      deviceInfo: filter.includeDeviceInfo || undefined,
-      withLastSeen: filter.includeLastSeen || undefined,
-      tags: commaList(filter.tags)
-    }, 15000);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch trips: ${response.status} ${response.statusText}`);
-    }
-
-    const csvText = await response.text();
-
-    if (csvText.trim() === '' || csvText.length < 5) {
-      console.log('Empty or invalid CSV response');
-      return [];
-    }
-
-    const trips = parseTripsCSV(csvText);
-    console.log(`Parsed ${trips.length} trips from CSV`);
-
-    // Cache the results with dynamic duration based on data recency
-    const cacheDuration = getCacheDuration(filter.dateTo);
-    setCachedData(cacheKey, trips, cacheDuration);
-
-    return trips;
-  } catch (error) {
-    console.error('Error fetching trips:', error);
-
-    // For non-IMEI requests, return empty array instead of throwing
-    if (!filter.imeis || filter.imeis.length === 0) {
-      return [];
-    }
-
-    throw error;
-  }
-};
+export interface MovementAdapter {
+  fetchTripPoints(filter: PointsFilter): Promise<TripPoint[]>;
+  fetchLiveLocations(imeis: string[]): Promise<LiveLocation[]>;
+  fetchFleetTripActivity(): Promise<FleetTripActivity>;
+}
 
 /**
  * Split one CSV line into fields, honouring double quotes so that a comma
@@ -212,19 +170,16 @@ const splitCsvLine = (line: string): string[] => {
  * `new Date()`.
  */
 const toIsoTimestamp = (value: string): string =>
-  value.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+  value ? value.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00') : '';
 
 /**
  * Parse trips CSV data from /v1/trips endpoint.
- *
- * Columns are found by header rather than position, because the endpoint only
- * appends IMEI and Device Id when asked for device info:
- * Trip,Started,Ended,Boat,Boat Name,Boat Gear,Community,Duration (Seconds),
- * Range (Meters),Distance (Meters),Created,Updated[,IMEI,Device Id]
+ * Columns are found by header rather than position because IMEI and Device Id
+ * are appended only when deviceInfo is requested.
  */
 export const parseTripsCSV = (csvText: string): Trip[] => {
   const lines = csvText.split('\n').map(line => line.trim()).filter(Boolean);
-  if (lines.length < 2) return []; // Need at least header + 1 data row
+  if (lines.length < 2) return [];
 
   const headers = splitCsvLine(lines[0]).map(header => header.trim());
 
@@ -254,20 +209,74 @@ export const parseTripsCSV = (csvText: string): Trip[] => {
     .filter(trip => trip.id);
 };
 
-/** How often one vessel went to sea over the recent window. */
-export interface VesselTripActivity {
-  trips: number;
-  /** When the most recent of those trips ended, as ISO 8601. */
-  lastTripEnd: string;
-}
+/**
+ * Parse trip points CSV data from /v1/points or /v1/trips/{id}/points.
+ * Uses quote-aware splitting and Safari-safe ISO timestamps matching parseTripsCSV.
+ */
+export const parsePointsCSV = (csv: string, imei?: string): TripPoint[] => {
+  if (!csv || csv.trim() === '') return [];
 
-/** Trip activity keyed by IMEI. Vessels with no trips have no entry. */
-export type FleetTripActivity = Record<string, VesselTripActivity>;
+  const lines = csv.split('\n').map(line => line.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
 
-/** The window the vessel picker counts trips over. */
-export const TRIP_ACTIVITY_DAYS = 90;
+  const headers = splitCsvLine(lines[0]).map(header => header.trim());
+  const headerIndexes: Record<string, number> = {};
 
-const TRIP_ACTIVITY_CACHE_MS = 30 * 60 * 1000;
+  headers.forEach((header, index) => {
+    switch (header) {
+      case 'Time': headerIndexes.time = index; break;
+      case 'Boat': headerIndexes.boat = index; break;
+      case 'Trip': headerIndexes.tripId = index; break;
+      case 'Lat': headerIndexes.latitude = index; break;
+      case 'Lng': headerIndexes.longitude = index; break;
+      case 'Speed (M/S)': headerIndexes.speed = index; break;
+      case 'Range (Meters)': headerIndexes.range = index; break;
+      case 'Heading': headerIndexes.heading = index; break;
+      case 'Boat Name': headerIndexes.boatName = index; break;
+      case 'Community': headerIndexes.community = index; break;
+      case 'Trip Created': headerIndexes.tripCreated = index; break;
+      case 'Trip Updated': headerIndexes.tripUpdated = index; break;
+      default:
+        headerIndexes[header.toLowerCase().replace(/ /g, '')] = index;
+    }
+  });
+
+  const points: TripPoint[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = splitCsvLine(lines[i]);
+    const point: Partial<TripPoint> & Record<string, unknown> = {
+      timestamp: '',
+      imei: imei || ''
+    };
+
+    for (const [key, index] of Object.entries(headerIndexes)) {
+      const value = (values[index] ?? '').trim();
+
+      if (['latitude', 'longitude', 'speed', 'heading', 'range'].includes(key)) {
+        point[key] = parseFloat(value) || 0;
+      } else if (['time', 'tripCreated', 'tripUpdated'].includes(key)) {
+        point[key] = toIsoTimestamp(value);
+      } else {
+        point[key] = value;
+      }
+    }
+
+    if (typeof point.speed === 'number' && point.speed < 20) {
+      point.speed = point.speed * 3.6; // m/s to km/h
+    }
+
+    if (point.time) {
+      point.timestamp = point.time as string;
+    }
+    point.deviceId = (point.boat as string) || `device-${imei?.slice(-4)}`;
+    point.lastSeen = (point.tripUpdated as string) || (point.time as string);
+
+    points.push(point as TripPoint);
+  }
+
+  return points;
+};
 
 /**
  * Count trips per vessel and note when each vessel's latest trip ended.
@@ -279,7 +288,7 @@ export const summariseTripActivity = (trips: Trip[]): FleetTripActivity => {
   for (const trip of trips) {
     if (!trip.imei) continue;
 
-    const entry = activity[trip.imei] ??= { trips: 0, lastTripEnd: '' };
+    const entry = (activity[trip.imei] ??= { trips: 0, lastTripEnd: '' });
     const end = trip.endTime || trip.startTime;
 
     entry.trips += 1;
@@ -292,98 +301,54 @@ export const summariseTripActivity = (trips: Trip[]): FleetTripActivity => {
 };
 
 /**
- * Trip activity for every vessel over the last TRIP_ACTIVITY_DAYS, for the
- * administrator's vessel picker.
- *
- * One request answers for the whole fleet: /v1/trips without an IMEI filter
- * returns trip summaries only, no GPS points, about 100 KB for 90 days. Asking
- * per vessel would be hundreds of requests. The figures change slowly and the
- * picker is reopened often, so the result is kept for half an hour, and callers
- * that ask while a request is already out share it.
- *
- * Throws on failure instead of returning an empty result, which would read as
- * "no vessel has been to sea".
+ * Single assembly pipeline turning raw trip points and live locations into
+ * grouped points, trips (with timezone enrichment and canonical maxRange * 1.2
+ * distance), and matching vessel insights. Never mutates input arrays.
  */
-export const fetchFleetTripActivity = async (): Promise<FleetTripActivity> => {
-  // The demo never calls Pelagic, and above all never about the real fleet.
-  if (isDemoMode()) {
-    return {};
+export const assembleVesselTracks = (
+  points: TripPoint[],
+  liveLocations: LiveLocation[] = [],
+  imeis?: string[],
+  now: Date = new Date()
+): VesselTracksSnapshot => {
+  const tripById: Record<string, TripPoint[]> = {};
+
+  for (const point of points) {
+    (tripById[point.tripId] ??= []).push(point);
   }
 
-  if (fleetActivityCache && Date.now() < fleetActivityCache.expiry) {
-    return fleetActivityCache.data;
-  }
-
-  if (!fleetActivityRequest) {
-    fleetActivityRequest = (async () => {
-      const today = new Date();
-      const dateFrom = format(subDays(today, TRIP_ACTIVITY_DAYS), 'yyyy-MM-dd');
-      // A day past today, as in fetchTripsFromAPI, so today's trips are not
-      // cut off by the API reading the end date as midnight UTC.
-      const dateTo = format(addDays(today, 1), 'yyyy-MM-dd');
-
-      const response = await fetchPdsHistory(`trips/${dateFrom}/${dateTo}`, { deviceInfo: true }, 30000);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch fleet trips: ${response.status} ${response.statusText}`);
-      }
-
-      const activity = summariseTripActivity(parseTripsCSV(await response.text()));
-      fleetActivityCache = { data: activity, expiry: Date.now() + TRIP_ACTIVITY_CACHE_MS };
-      return activity;
-    })().finally(() => {
-      fleetActivityRequest = null;
-    });
-  }
-
-  return fleetActivityRequest;
-};
-
-/**
- * Fetch trips data from Pelagic Data API
- * This function first fetches points and then constructs trips from them
- */
-export const fetchTrips = async (filter: TripsFilter): Promise<Trip[]> => {
-  // First, fetch all the points for the time range
-  const points = await fetchTripPoints(filter);
-  
-  if (points.length === 0) {
-    console.log('No points found, returning empty trips array');
-    return [];
-  }
-  
-  console.log(`Constructing trips from ${points.length} points`);
-  
-  // Group points by trip ID
-  const tripMap = new Map<string, TripPoint[]>();
-  
-  points.forEach(point => {
-    if (!tripMap.has(point.tripId)) {
-      tripMap.set(point.tripId, []);
+  const timezoneByImei = new Map<string, string>();
+  for (const loc of liveLocations) {
+    if (loc.imei && loc.timezone) {
+      timezoneByImei.set(loc.imei, loc.timezone);
     }
-    tripMap.get(point.tripId)?.push(point);
-  });
-  
-  // Create trip objects from grouped points
+  }
+
   const trips: Trip[] = [];
-  
-  for (const [tripId, tripPoints] of tripMap.entries()) {
-    // Sort points by time
-    tripPoints.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-    
-    const firstPoint = tripPoints[0];
-    const lastPoint = tripPoints[tripPoints.length - 1];
-    
-    // Calculate duration in seconds
-    const startTime = new Date(firstPoint.time);
-    const endTime = new Date(lastPoint.time);
-    const durationSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-    
-    // Calculate distance (using the range values from points)
-    const distanceMeters = Math.max(...tripPoints.map(p => p.range));
-    
-    // Note: samplePoint was unused, removed to fix linting
-    
+  const oneDayAgoMs = subDays(now, 1).getTime();
+  let activeTrips = 0;
+  let totalDistanceMeters = 0;
+
+  for (const [tripId, rawTripPoints] of Object.entries(tripById)) {
+    const sorted = [...rawTripPoints].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+    tripById[tripId] = sorted;
+
+    const firstPoint = sorted[0];
+    const lastPoint = sorted[sorted.length - 1];
+    const startMs = new Date(firstPoint.time).getTime();
+    const endMs = new Date(lastPoint.time).getTime();
+    const durationSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
+    const maxRangeMeters = Math.max(...sorted.map(p => p.range || 0));
+    const distanceMeters = maxRangeMeters * TRIP_DISTANCE_RANGE_FACTOR;
+    const tripImei = firstPoint.imei || imeis?.[0];
+
+    if (endMs > oneDayAgoMs) {
+      activeTrips += 1;
+    }
+    totalDistanceMeters += distanceMeters;
+
     trips.push({
       id: tripId,
       startTime: firstPoint.time,
@@ -392,41 +357,94 @@ export const fetchTrips = async (filter: TripsFilter): Promise<Trip[]> => {
       boatName: firstPoint.boatName,
       community: firstPoint.community,
       durationSeconds,
-      rangeMeters: distanceMeters,
-      distanceMeters: distanceMeters * 1.2, // Estimate, as total path is likely longer than max range
+      rangeMeters: maxRangeMeters,
+      distanceMeters,
       created: firstPoint.tripCreated,
       updated: lastPoint.tripUpdated,
-      imei: filter.imeis?.[0],
+      imei: tripImei,
       lastSeen: lastPoint.time,
-      timezone: undefined // Will be populated by live location data if available
+      timezone: tripImei ? timezoneByImei.get(tripImei) : undefined
     });
   }
-  
-  console.log(`Created ${trips.length} trips from points`);
-  return trips;
+
+  const avgSpeed =
+    points.length > 0
+      ? points.reduce((sum, p) => sum + (p.speed || 0), 0) / points.length
+      : 0;
+
+  return {
+    trips,
+    tripPoints: points,
+    tripById,
+    liveLocations,
+    insights: {
+      activeTrips,
+      totalDistance: parseFloat((totalDistanceMeters / 1000).toFixed(1)),
+      avgSpeed: parseFloat(avgSpeed.toFixed(1))
+    }
+  };
 };
 
-/**
- * Fallback: fetch points via /v1/trips/{id}/points when /v1/points returns empty.
- */
-const fetchTripPointsForTripId = async (tripId: string, imei?: string): Promise<TripPoint[]> => {
+/** Calculate map center from a set of trip points. */
+export const calculateCenterFromPoints = (
+  points: TripPoint[]
+): { latitude: number; longitude: number } => {
+  if (points.length === 0) {
+    return { latitude: -4.4, longitude: 39.6 };
+  }
+
+  const totalLat = points.reduce((sum, p) => sum + p.latitude, 0);
+  const totalLng = points.reduce((sum, p) => sum + p.longitude, 0);
+
+  return {
+    latitude: totalLat / points.length,
+    longitude: totalLng / points.length
+  };
+};
+
+// --- Internal HTTP / Pelagic adapter implementation ---
+
+const fetchTripsFromAPI = async (filter: TripsFilter): Promise<Trip[]> => {
+  const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'trips');
+  const cachedData = getCachedData<Trip[]>(cacheKey);
+  if (cachedData) return cachedData;
+
+  const adjustedDateTo = isToday(filter.dateTo) ? addDays(filter.dateTo, 1) : filter.dateTo;
+  const dateFrom = format(filter.dateFrom, 'yyyy-MM-dd');
+  const dateTo = format(adjustedDateTo, 'yyyy-MM-dd');
+
   try {
-    const response = await fetchPdsHistory(`trips/${tripId}/points`, {}, 15000);
+    const response = await fetchPdsHistory(`trips/${dateFrom}/${dateTo}`, {
+      imeis: commaList(filter.imeis),
+      deviceInfo: filter.includeDeviceInfo || undefined,
+      withLastSeen: filter.includeLastSeen || undefined,
+      tags: commaList(filter.tags)
+    }, 15000);
 
     if (!response.ok) {
-      console.error(`Trip points request failed (${tripId}): ${response.status} ${response.statusText}`);
-      return [];
+      throw new Error(`Failed to fetch trips: ${response.status} ${response.statusText}`);
     }
 
     const csvText = await response.text();
-    if (csvText.trim() === '' || csvText.length < 5) {
-      console.warn(`Trip points empty for trip ${tripId}`);
-      return [];
-    }
+    if (csvText.trim() === '' || csvText.length < 5) return [];
 
-    return parsePointsCSV(csvText, imei);
+    const trips = parseTripsCSV(csvText);
+    setCachedData(cacheKey, trips, getCacheDuration(filter.dateTo));
+    return trips;
   } catch (error) {
-    console.error(`Error fetching trip points for trip ${tripId}:`, error);
+    if (!filter.imeis || filter.imeis.length === 0) return [];
+    throw error;
+  }
+};
+
+const fetchTripPointsForTripId = async (tripId: string, imei?: string): Promise<TripPoint[]> => {
+  try {
+    const response = await fetchPdsHistory(`trips/${tripId}/points`, {}, 15000);
+    if (!response.ok) return [];
+    const csvText = await response.text();
+    if (csvText.trim() === '' || csvText.length < 5) return [];
+    return parsePointsCSV(csvText, imei);
+  } catch {
     return [];
   }
 };
@@ -434,335 +452,155 @@ const fetchTripPointsForTripId = async (tripId: string, imei?: string): Promise<
 const fetchTripPointsViaTripsFallback = async (filter: PointsFilter): Promise<TripPoint[]> => {
   try {
     const trips = await fetchTripsFromAPI(filter);
-    if (!trips.length) {
-      console.warn('No trips returned from /v1/trips during fallback lookup.');
-      return [];
-    }
-
     const tripIds = Array.from(new Set(trips.map(trip => trip.id).filter(Boolean)));
-    if (!tripIds.length) {
-      console.warn('Trips response contained no IDs; cannot fetch trip points.');
-      return [];
-    }
-
-    console.warn(`Fallback: fetching points for ${tripIds.length} trip(s) via /v1/trips/{id}/points`);
+    if (!tripIds.length) return [];
 
     const tripPointsArrays = await Promise.all(
       tripIds.map(id => fetchTripPointsForTripId(id, filter.imeis?.[0]))
     );
-
     return tripPointsArrays.flat();
-  } catch (fallbackError) {
-    console.error('Fallback via /v1/trips failed:', fallbackError);
+  } catch {
     return [];
   }
 };
 
-/**
- * Fallback: load trip points from local parquet snapshot served by backend.
- */
 const fetchTripPointsFromLocalSnapshot = async (filter: PointsFilter): Promise<TripPoint[]> => {
   try {
     const response = await apiFetch('/fallback/points', {
-      headers: { 'Accept': 'application/json' },
+      headers: { Accept: 'application/json' },
       query: {
         dateFrom: format(filter.dateFrom, 'yyyy-MM-dd'),
         dateTo: format(filter.dateTo, 'yyyy-MM-dd'),
-        imeis: filter.imeis && filter.imeis.length ? filter.imeis.join(',') : undefined
+        imeis: commaList(filter.imeis)
       },
       timeoutMs: 10000
     });
 
-    if (!response.ok) {
-      console.warn(`Fallback parquet endpoint failed: ${response.status} ${response.statusText}`);
-      return [];
-    }
-
+    if (!response.ok) return [];
     const data = await response.json();
-    if (!Array.isArray(data)) {
-      console.warn('Fallback parquet endpoint returned non-array payload');
-      return [];
-    }
-
-    return data as TripPoint[];
-  } catch (error) {
-    console.error('Error fetching fallback parquet points:', error);
+    return Array.isArray(data) ? (data as TripPoint[]) : [];
+  } catch {
     return [];
   }
 };
 
-/**
- * Fetch trip points data from Pelagic Data API
- */
-export const fetchTripPoints = async (filter: PointsFilter): Promise<TripPoint[]> => {
-  // The demo replays frozen tracks rather than following a real vessel.
-  if (isDemoMode()) {
-    return fetchDemoTripPoints(filter.dateFrom, filter.dateTo);
-  }
-
-  // Check cache first
-  const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'points');
-  const cachedData = getCachedData<TripPoint[]>(cacheKey);
-  if (cachedData) {
-    return cachedData;
-  }
-
-  // Fix timezone ambiguity: Add buffer day for "today" queries to ensure we capture recent data
-  // When API receives "2025-11-20", it may interpret as start of day in UTC, potentially missing
-  // recent hours if user is in a different timezone (e.g., EAT/UTC+3)
-  const adjustedDateTo = isToday(filter.dateTo) ? addDays(filter.dateTo, 1) : filter.dateTo;
-
-  const dateFrom = format(filter.dateFrom, 'yyyy-MM-dd');
-  const dateTo = format(adjustedDateTo, 'yyyy-MM-dd');
-
-  console.log(`📅 Date range: ${dateFrom} to ${dateTo}${isToday(filter.dateTo) ? ' (today+1 buffer)' : ''}`);
-  
-  try {
-    const response = await fetchPdsHistory(`points/${dateFrom}/${dateTo}`, {
-      imeis: commaList(filter.imeis),
-      deviceInfo: filter.includeDeviceInfo || undefined,
-      errant: filter.includeErrant || undefined,
-      withLastSeen: filter.includeLastSeen || undefined,
-      tags: commaList(filter.tags)
-    }, 15000);
-    
-    if (!response.ok) {
-      console.error(`API request failed with status: ${response.status}`);
-      const errorText = await response.text();
-      console.error(`Error response: ${errorText}`);
-      
-      // Handle specific 500 error with server-side file issue
-      if (response.status === 500 && errorText.includes('empty_api_points.csv')) {
-        console.warn('Server-side file system issue detected. This is a known API server problem.');
-        return []; // Return empty array instead of mock data
-      }
-      
-      // For non-IMEI requests (admin view), return empty array instead of throwing
-      if (!filter.imeis || filter.imeis.length === 0) {
-        console.warn('No IMEIs provided and API failed. Returning empty array for admin view.');
-        return [];
-      }
-      
-      throw new Error(`API request failed: ${response.statusText}`);
-    }
-    
-    // API returns CSV, we need to parse it
-    const csvText = await response.text();
-    console.log(`Received CSV data of length: ${csvText.length}`);
-    
-    let points: TripPoint[] = [];
-
-    if (csvText.trim() === '' || csvText.length < 5) {
-      console.warn('Empty or invalid CSV response from /v1/points; attempting local snapshot fallback.');
-      points = await fetchTripPointsFromLocalSnapshot(filter);
-
-      if (!points.length) {
-        console.warn('Local snapshot fallback returned no data; attempting trip-based fallback.');
-        points = await fetchTripPointsViaTripsFallback(filter);
-      }
-    } else {
-      points = parsePointsCSV(csvText, filter.imeis?.[0]);
-      console.log(`Parsed ${points.length} points from CSV`);
-    }
-
-    // Cache the results with dynamic duration based on data recency
-    const cacheDuration = getCacheDuration(filter.dateTo);
-    setCachedData(cacheKey, points, cacheDuration);
-
-    return points;
-  } catch (error) {
-    console.error('Error fetching trip points:', error);
-    
-    // For non-IMEI requests, return empty array instead of throwing
-    if (!filter.imeis || filter.imeis.length === 0) {
-      console.warn('No IMEIs provided and API failed. Returning empty array.');
-      return [];
-    }
-    
-    // For IMEI requests, try fallbacks before throwing
-    console.warn('Primary API call failed; attempting fallbacks.');
-    const localPoints = await fetchTripPointsFromLocalSnapshot(filter);
-    if (localPoints.length) {
-      return localPoints;
-    }
-
-    const tripFallbackPoints = await fetchTripPointsViaTripsFallback(filter);
-    if (tripFallbackPoints.length) {
-      return tripFallbackPoints;
-    }
-
-    throw error;
-  }
-};
-
-/**
- * Parse CSV response for trip points data
- * Based on the actual CSV format: 
- * Time,Boat,Trip,Lat,Lng,Speed (M/S),Range (Meters),Heading,Boat Name,Community,Trip Created,Trip Updated
- */
-const parsePointsCSV = (csv: string, imei?: string): TripPoint[] => {
-  if (!csv || csv.trim() === '') {
-    console.warn('Empty CSV data received from API');
-    return [];
-  }
-  
-  try {
-    const lines = csv.trim().split('\n');
-    
-    if (lines.length < 2) {
-      console.warn('CSV data contains only headers or is empty');
-      return [];
-    }
-    
-    const headers = lines[0].split(',').map(h => h.trim());
-    console.log('Points CSV headers:', headers);
-    
-    // Define mapping for CSV fields to our object properties
-    const headerIndexes: {[key: string]: number} = {};
-    
-    // Map the headers to their positions
-    headers.forEach((header, index) => {
-      // Handle specific headers we know about
-      switch (header) {
-        case 'Time': headerIndexes['time'] = index; break;
-        case 'Boat': headerIndexes['boat'] = index; break;
-        case 'Trip': headerIndexes['tripId'] = index; break;
-        case 'Lat': headerIndexes['latitude'] = index; break;
-        case 'Lng': headerIndexes['longitude'] = index; break;
-        case 'Speed (M/S)': headerIndexes['speed'] = index; break;
-        case 'Range (Meters)': headerIndexes['range'] = index; break;
-        case 'Heading': headerIndexes['heading'] = index; break;
-        case 'Boat Name': headerIndexes['boatName'] = index; break;
-        case 'Community': headerIndexes['community'] = index; break;
-        case 'Trip Created': headerIndexes['tripCreated'] = index; break;
-        case 'Trip Updated': headerIndexes['tripUpdated'] = index; break;
-        // Add any other known headers here
-        default:
-          // For unrecognized headers, use a lowercase version of the header name
-          headerIndexes[header.toLowerCase().replace(/ /g, '')] = index;
-      }
-    });
-    
-    const points: TripPoint[] = [];
-    
-    // Skip the header row and process all data rows
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue; // Skip empty lines
-      
-      try {
-        // Split the CSV line while handling quoted fields
-        const values = line.split(',');
-        
-        // Create a point object using the mapped indices
-        const point: Partial<TripPoint> & Record<string, unknown> = {
-          timestamp: '', // Will be set from time field below
-          imei: imei || '' // Add IMEI from filter
-        };
-        
-        // Process each field based on the header mapping
-        Object.keys(headerIndexes).forEach(key => {
-          const index = headerIndexes[key];
-          const value = values[index]?.trim() || '';
-          
-          if (['latitude', 'longitude', 'speed', 'heading', 'range'].includes(key)) {
-            // Convert numeric fields
-            point[key] = parseFloat(value) || 0;
-          } else {
-            // String fields
-            point[key] = value;
-          }
-        });
-        
-        // Convert speed from m/s to km/h if needed
-        if (point.speed !== undefined) {
-          // If it seems like the speed is in m/s (common values < 20),
-          // convert to km/h for consistency with our app
-          if (point.speed < 20) {
-            point.speed = point.speed * 3.6; // m/s to km/h
-          }
-        }
-        
-        // Add standard timestamp field for compatibility
-        if (point.time) {
-          point.timestamp = point.time;
-        }
-        
-        // Add deviceId for compatibility
-        point.deviceId = point.boat || `device-${imei?.slice(-4)}`;
-        
-        // Add lastSeen for compatibility
-        point.lastSeen = point.tripUpdated || point.time;
-        
-        points.push(point as TripPoint);
-      } catch (lineError) {
-        console.error(`Error parsing CSV line ${i}:`, lineError, line);
-      }
-    }
-    
-    console.log(`Successfully parsed ${points.length} points`);
-    return points;
-  } catch (error) {
-    console.error('Error parsing points CSV:', error);
-    return [];
-  }
-};
-
-/**
- * Convert timestamp string to Date object with timezone support
- */
 const convertTimestamp = (timestamp: string | null): Date | null => {
   if (!timestamp) return null;
-  
   try {
-    // Try to parse the timestamp directly first
-    const date = new Date(timestamp);
-    if (!isNaN(date.getTime())) {
-      return date;
-    }
-    
-    // If that fails, try adding timezone info
-    const timestampWithTz = timestamp.includes('+') || timestamp.includes('Z') 
-      ? timestamp 
-      : `${timestamp}+00:00`; // Assume UTC if no timezone
-    
-    return new Date(timestampWithTz);
-  } catch (error) {
-    console.warn(`Failed to parse timestamp: ${timestamp}`, error);
+    const iso = toIsoTimestamp(timestamp);
+    const date = new Date(iso);
+    if (!Number.isNaN(date.getTime())) return date;
+    const withTz = iso.includes('+') || iso.includes('Z') ? iso : `${iso}+00:00`;
+    const parsed = new Date(withTz);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  } catch {
     return null;
   }
 };
 
-// Helper function to get a date range for the last N days
-export const getDateRangeForLastDays = (days: number): {dateFrom: Date, dateTo: Date} => {
-  const dateTo = new Date();
-  const dateFrom = new Date();
-  dateFrom.setDate(dateFrom.getDate() - days);
-  
-  return { dateFrom, dateTo };
-}; 
-
-/**
- * Fetch live location data for specific devices, through our own server,
- * which holds the PDS login.
- */
-export const fetchLiveLocations = async (imeis?: string[]): Promise<LiveLocation[]> => {
-  if (isDemoMode()) {
-    return fetchDemoLiveLocations();
+const flattenObject = (obj: Record<string, unknown>, prefix = ''): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(obj)) {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    const value = obj[key];
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      Object.assign(result, flattenObject(value as Record<string, unknown>, newKey));
+    } else {
+      result[newKey] = value;
+    }
   }
+  return result;
+};
 
-  if (!imeis || imeis.length === 0) {
-    return [];
-  }
+const parseLiveLocationData = (data: unknown[]): LiveLocation[] => {
+  if (!Array.isArray(data)) return [];
 
-  const cacheKey = getGenericCacheKey('liveLocations', { imeis });
-  const cachedData = getCachedData<LiveLocation[]>(cacheKey);
-  if (cachedData) {
-    console.log('📋 Using cached live locations data');
-    return cachedData;
-  }
+  return data
+    .map((device, index) => {
+      const flattened = flattenObject(device as Record<string, unknown>);
+      return {
+        deviceIndex: (index + 1).toString(),
+        boatName: (flattened.boatName || flattened['boat.name'] || '') as string,
+        directCustomerName: (flattened.directCustomerName || flattened['directCustomer.name'] || '') as string,
+        timezone: (flattened.timezone || 'UTC') as string,
+        lastSeen: convertTimestamp((flattened.lastSeen as string) ?? null),
+        imei: (flattened.imei || '') as string,
+        lat: parseFloat((flattened.lat as string) || '0') || 0,
+        lng: parseFloat((flattened.lng as string) || '0') || 0,
+        lastGpsTs: convertTimestamp((flattened.lastGpsTs as string) ?? null),
+        batteryState: flattened.batteryState as string | undefined,
+        externalBoatId: flattened.externalBoatId as string | undefined
+      };
+    })
+    .filter(location => Boolean(location.imei));
+};
 
-  try {
+export const pelagicHttpAdapter: MovementAdapter = {
+  async fetchTripPoints(filter: PointsFilter): Promise<TripPoint[]> {
+    const cacheKey = getCacheKey(filter.dateFrom, filter.dateTo, filter.imeis, 'points');
+    const cachedData = getCachedData<TripPoint[]>(cacheKey);
+    if (cachedData) return cachedData;
+
+    // Add +1 day buffer for "today" queries so UTC-midnight truncation does not
+    // drop recent hours for fishers in positive timezones (e.g. EAT/UTC+3).
+    const adjustedDateTo = isToday(filter.dateTo) ? addDays(filter.dateTo, 1) : filter.dateTo;
+    const dateFrom = format(filter.dateFrom, 'yyyy-MM-dd');
+    const dateTo = format(adjustedDateTo, 'yyyy-MM-dd');
+
+    try {
+      const response = await fetchPdsHistory(`points/${dateFrom}/${dateTo}`, {
+        imeis: commaList(filter.imeis),
+        deviceInfo: filter.includeDeviceInfo || undefined,
+        errant: filter.includeErrant || undefined,
+        withLastSeen: filter.includeLastSeen || undefined,
+        tags: commaList(filter.tags)
+      }, 15000);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (response.status === 500 && errorText.includes('empty_api_points.csv')) {
+          return [];
+        }
+        if (!filter.imeis || filter.imeis.length === 0) {
+          return [];
+        }
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+
+      const csvText = await response.text();
+      let points: TripPoint[] = [];
+
+      if (csvText.trim() === '' || csvText.length < 5) {
+        points = await fetchTripPointsFromLocalSnapshot(filter);
+        if (!points.length) {
+          points = await fetchTripPointsViaTripsFallback(filter);
+        }
+      } else {
+        points = parsePointsCSV(csvText, filter.imeis?.[0]);
+      }
+
+      setCachedData(cacheKey, points, getCacheDuration(filter.dateTo));
+      return points;
+    } catch (error) {
+      if (!filter.imeis || filter.imeis.length === 0) return [];
+
+      const localPoints = await fetchTripPointsFromLocalSnapshot(filter);
+      if (localPoints.length) return localPoints;
+
+      const tripFallbackPoints = await fetchTripPointsViaTripsFallback(filter);
+      if (tripFallbackPoints.length) return tripFallbackPoints;
+
+      throw error;
+    }
+  },
+
+  async fetchLiveLocations(imeis: string[]): Promise<LiveLocation[]> {
+    if (!imeis || imeis.length === 0) return [];
+
+    const cacheKey = getGenericCacheKey('liveLocations', { imeis });
+    const cachedData = getCachedData<LiveLocation[]>(cacheKey);
+    if (cachedData) return cachedData;
+
     const response = await apiFetch('/live-locations', {
       query: { imeis: imeis.join(',') },
       timeoutMs: 15000
@@ -772,136 +610,92 @@ export const fetchLiveLocations = async (imeis?: string[]): Promise<LiveLocation
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
-    const parsedData = parseLiveLocationData(data);
-
-    // Live data should refresh often.
+    const parsedData = parseLiveLocationData(await response.json());
     setCachedData(cacheKey, parsedData, 60 * 1000);
-
     return parsedData;
-  } catch (error) {
-    console.error('❌ Error fetching live locations:', error);
-    throw error;
-  }
-};
+  },
 
-/**
- * Parse the API response into LiveLocation objects
- */
-const parseLiveLocationData = (data: unknown[]): LiveLocation[] => {
-  if (!Array.isArray(data)) {
-    console.warn('Expected array from API, got:', typeof data);
-    return [];
-  }
-  
-  return data.map((device, index) => {
-    // Flatten nested structures (similar to your R code)
-    const flattened = flattenObject(device as Record<string, unknown>);
-    
-    // Extract the fields we need
-    const liveLocation: LiveLocation = {
-      deviceIndex: (index + 1).toString(),
-      boatName: (flattened.boatName || flattened['boat.name'] || '') as string,
-      directCustomerName: (flattened.directCustomerName || flattened['directCustomer.name'] || '') as string,
-      timezone: (flattened.timezone || 'UTC') as string,
-      lastSeen: convertTimestamp(flattened.lastSeen as string),
-      imei: (flattened.imei || '') as string,
-      lat: parseFloat((flattened.lat as string) || '0') || 0,
-      lng: parseFloat((flattened.lng as string) || '0') || 0,
-      lastGpsTs: convertTimestamp(flattened.lastGpsTs as string),
-      batteryState: flattened.batteryState as string | undefined,
-      externalBoatId: flattened.externalBoatId as string | undefined
-    };
-    
-    return liveLocation;
-  }).filter(location => location.imei); // Only return devices with valid IMEI
-};
-
-/**
- * Flatten nested object (similar to your R flatten_safely function)
- */
-const flattenObject = (obj: Record<string, unknown>, prefix = ''): Record<string, unknown> => {
-  const result: { [key: string]: unknown } = {};
-  
-  for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      const newKey = prefix ? `${prefix}.${key}` : key;
-      
-      if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
-        // Recursively flatten objects
-        Object.assign(result, flattenObject(obj[key] as Record<string, unknown>, newKey));
-      } else {
-        // Keep primitive values
-        result[newKey] = obj[key];
-      }
+  async fetchFleetTripActivity(): Promise<FleetTripActivity> {
+    if (fleetActivityCache && Date.now() < fleetActivityCache.expiry) {
+      return fleetActivityCache.data;
     }
+
+    if (!fleetActivityRequest) {
+      fleetActivityRequest = (async () => {
+        const today = new Date();
+        const dateFrom = format(subDays(today, TRIP_ACTIVITY_DAYS), 'yyyy-MM-dd');
+        // A day past today so today's trips are not cut off by midnight UTC.
+        const dateTo = format(addDays(today, 1), 'yyyy-MM-dd');
+
+        const response = await fetchPdsHistory(`trips/${dateFrom}/${dateTo}`, { deviceInfo: true }, 30000);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch fleet trips: ${response.status} ${response.statusText}`);
+        }
+
+        const activity = summariseTripActivity(parseTripsCSV(await response.text()));
+        fleetActivityCache = { data: activity, expiry: Date.now() + TRIP_ACTIVITY_CACHE_MS };
+        return activity;
+      })().finally(() => {
+        fleetActivityRequest = null;
+      });
+    }
+
+    return fleetActivityRequest;
   }
-  
-  return result;
+};
+
+/** Frozen snapshot adapter for demo mode — structurally never reaches Pelagic. */
+export const demoMovementAdapter: MovementAdapter = {
+  fetchTripPoints: (filter) => fetchDemoTripPoints(filter.dateFrom, filter.dateTo),
+  fetchLiveLocations: () => fetchDemoLiveLocations(),
+  fetchFleetTripActivity: async () => ({})
+};
+
+const activeAdapter = (): MovementAdapter =>
+  isDemoMode() ? demoMovementAdapter : pelagicHttpAdapter;
+
+/**
+ * Load a consistent snapshot of trips, trip points, tripById, live locations,
+ * and vessel insights in a single parallel round-trip.
+ */
+export const loadVesselTracks = async (
+  filter: PointsFilter,
+  adapter: MovementAdapter = activeAdapter()
+): Promise<VesselTracksSnapshot> => {
+  const imeis = filter.imeis ?? [];
+  const [points, liveLocations] = await Promise.all([
+    adapter.fetchTripPoints(filter),
+    adapter.fetchLiveLocations(imeis).catch(err => {
+      console.warn('Failed to fetch live locations:', err);
+      return [] as LiveLocation[];
+    })
+  ]);
+
+  return assembleVesselTracks(points, liveLocations, imeis);
 };
 
 /**
- * Get live location for a single device by IMEI
+ * Atomically clear cached movement entries and reload both trip points and
+ * live locations so every panel and the map stay in sync.
  */
-export const fetchDeviceLiveLocation = async (imei: string): Promise<LiveLocation | null> => {
-  const locations = await fetchLiveLocations([imei]);
-  return locations.length > 0 ? locations[0] : null;
+export const refreshVesselTracks = async (
+  filter: PointsFilter,
+  adapter: MovementAdapter = activeAdapter()
+): Promise<VesselTracksSnapshot> => {
+  clearCache();
+  return loadVesselTracks(filter, adapter);
 };
 
-/**
- * Check if a location is recent (within last 24 hours)
- */
-export const isLocationRecent = (location: LiveLocation): boolean => {
-  if (!location.lastGpsTs) return false;
-  
-  const now = new Date();
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  
-  return location.lastGpsTs > oneDayAgo;
+/** Fetch assembled trips for a date window (used by TripSelectionModal). */
+export const fetchTrips = async (
+  filter: TripsFilter,
+  adapter: MovementAdapter = activeAdapter()
+): Promise<Trip[]> => {
+  const points = await adapter.fetchTripPoints(filter);
+  return assembleVesselTracks(points, [], filter.imeis).trips;
 };
 
-/**
- * Format location timestamp for display
- */
-export const formatLocationTime = (date: Date): string => {
-  if (!date) return 'Never';
-  
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
-  
-  if (diffMinutes < 1) return 'Just now';
-  if (diffMinutes < 60) return `${diffMinutes} min ago`;
-  if (diffHours < 24) return `${diffHours} hours ago`;
-  if (diffDays < 7) return `${diffDays} days ago`;
-  
-  return date.toLocaleDateString();
-};
-
-/**
- * Convert LiveLocation to TripPoint format for compatibility
- */
-export const liveLocationToTripPoint = (location: LiveLocation): TripPoint => {
-  const timeStr = location.lastGpsTs?.toISOString() || new Date().toISOString();
-  
-  return {
-    time: timeStr,
-    timestamp: timeStr,
-    boat: location.externalBoatId || location.deviceIndex,
-    tripId: `live-${location.imei}`,
-    latitude: location.lat,
-    longitude: location.lng,
-    speed: 0, // Live location doesn't include speed
-    range: 0, // Live location doesn't include range
-    heading: 0, // Live location doesn't include heading
-    boatName: location.boatName,
-    community: location.directCustomerName,
-    tripCreated: timeStr,
-    tripUpdated: timeStr,
-    imei: location.imei,
-    deviceId: location.externalBoatId || location.deviceIndex,
-    lastSeen: location.lastSeen?.toISOString()
-  };
-};
+/** Fetch fleet-wide 90-day trip activity (used by admin vessel picker). */
+export const fetchFleetTripActivity = async (
+  adapter: MovementAdapter = activeAdapter()
+): Promise<FleetTripActivity> => adapter.fetchFleetTripActivity();

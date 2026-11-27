@@ -42,7 +42,7 @@ Administrators have no tracking device of their own. Call `hasTrackingDevice()` 
 
 ## Rules
 
-- Style with Tabler components and classes, and avoid custom element styling unless nothing in Tabler fits.
+- Style with shadcn/ui components (`base-nova` preset `b1s9bqgNs`, Base UI, Tailwind CSS v4, Lucide icons) and semantic tokens, following `https://ui.shadcn.com/docs`, and avoid custom element styling unless nothing in shadcn/ui fits.
 - Use the terms in `CONTEXT.md` in code, UI copy and docs.
 - Add every new UI string to all three locale files.
 - Read `docs/API-AUTH-PLAN.md` before touching auth, admin identity, or any handler that takes a `userId`.

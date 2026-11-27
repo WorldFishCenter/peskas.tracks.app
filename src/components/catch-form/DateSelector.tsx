@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface DateSelectorProps {
   selectedDate: Date;
@@ -11,75 +12,39 @@ const DateSelector: React.FC<DateSelectorProps> = ({ selectedDate, onDateSelecti
 
   const today = new Date();
   const isToday = selectedDate.toDateString() === today.toDateString();
-  
+
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const isYesterday = selectedDate.toDateString() === yesterday.toDateString();
-  
+
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   const isTwoDaysAgo = selectedDate.toDateString() === twoDaysAgo.toDateString();
 
+  const activeValue = isToday ? ['0'] : isYesterday ? ['1'] : isTwoDaysAgo ? ['2'] : [];
+
   return (
-    <div className="mb-3 mb-lg-4">
-      <div className="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 mb-3">
-        <h4 className="mb-0">{t('catch.whenWasCatchMade')}</h4>
-        <div className="btn-group" role="group">
-          <input 
-            type="radio" 
-            className="btn-check" 
-            name="catchDate" 
-            id="today" 
-            autoComplete="off" 
-            checked={isToday}
-            readOnly
-          />
-          <label 
-            className="btn btn-outline-primary" 
-            htmlFor="today" 
-            onClick={() => onDateSelection(0)}
-            style={{ minHeight: '44px' }}
-          >
-            {t('catch.today')}
-          </label>
-          
-          <input 
-            type="radio" 
-            className="btn-check" 
-            name="catchDate" 
-            id="yesterday" 
-            autoComplete="off"
-            checked={isYesterday}
-            readOnly
-          />
-          <label 
-            className="btn btn-outline-primary" 
-            htmlFor="yesterday" 
-            onClick={() => onDateSelection(1)}
-            style={{ minHeight: '44px' }}
-          >
-            {t('catch.yesterday')}
-          </label>
-          
-          <input 
-            type="radio" 
-            className="btn-check" 
-            name="catchDate" 
-            id="twoDaysAgo" 
-            autoComplete="off"
-            checked={isTwoDaysAgo}
-            readOnly
-          />
-          <label 
-            className="btn btn-outline-primary" 
-            htmlFor="twoDaysAgo" 
-            onClick={() => onDateSelection(2)}
-            style={{ minHeight: '44px' }}
-          >
-            {t('catch.twoDaysAgo')}
-          </label>
-        </div>
-      </div>
+    <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+      <h4 className="text-sm font-semibold">{t('catch.whenWasCatchMade')}</h4>
+      <ToggleGroup
+        value={activeValue}
+        onValueChange={(values) => {
+          const next = values[0];
+          if (next !== undefined) onDateSelection(Number(next));
+        }}
+        variant="outline"
+        spacing={0}
+      >
+        <ToggleGroupItem value="0" className="h-10 px-3">
+          {t('catch.today')}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="1" className="h-10 px-3">
+          {t('catch.yesterday')}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="2" className="h-10 px-3">
+          {t('catch.twoDaysAgo')}
+        </ToggleGroupItem>
+      </ToggleGroup>
     </div>
   );
 };

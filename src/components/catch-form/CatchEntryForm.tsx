@@ -1,15 +1,27 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconList, IconWeight, IconTrash } from '@tabler/icons-react';
+import { ListIcon, ScaleIcon, Trash2Icon } from 'lucide-react';
 import { FishGroup, CatchEntry } from '../../types';
 import PhotoSection from './PhotoSection';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 
 interface CatchEntryFormProps {
   catchEntry: CatchEntry;
   index: number;
   totalCatches: number;
   loading: boolean;
-  isDarkMode: boolean;
   isDirectCatch: boolean;
   fileInputRefs: React.MutableRefObject<{ [key: string]: HTMLInputElement | null }>;
   onUpdate: (id: string, field: keyof CatchEntry, value: string | number) => void;
@@ -21,10 +33,10 @@ interface CatchEntryFormProps {
 
 const FISH_GROUPS: FishGroup[] = [
   'reef fish',
-  'sharks/rays', 
+  'sharks/rays',
   'small pelagics',
   'large pelagics',
-  'tuna/tuna-like'
+  'tuna/tuna-like',
 ];
 
 const CatchEntryForm: React.FC<CatchEntryFormProps> = ({
@@ -32,104 +44,110 @@ const CatchEntryForm: React.FC<CatchEntryFormProps> = ({
   index,
   totalCatches,
   loading,
-  isDarkMode,
   fileInputRefs,
   onUpdate,
   onRemove,
   onFileUpload,
-  onRemovePhoto
+  onRemovePhoto,
 }) => {
   const { t } = useTranslation();
 
+  const fishGroupItems = FISH_GROUPS.map((group) => ({
+    value: group,
+    label: t(`catch.fishGroups.${group.replace(/[^a-zA-Z]/g, '')}`),
+  }));
+
   return (
-    <div className={`catch-entry ${index > 0 ? 'border-top pt-3 mt-3' : ''} ${index < totalCatches - 1 ? 'mb-3' : ''}`}>
-      <div className="row g-3">
-        <div className="col-12 col-sm-6 col-lg-5">
-          <label className="form-label fw-medium mb-2 d-flex align-items-center">
-            <IconList className="me-2" size={16} />
-            {t('catch.fishGroup')}
-            {totalCatches > 1 && (
-              <span className="ms-auto badge badge-outline text-primary" style={{ fontSize: '11px', fontWeight: '500' }}>
-                #{index + 1}
+    <div className="flex flex-col gap-3">
+      {index > 0 && <Separator />}
+
+      <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+        <div className="sm:col-span-6 lg:col-span-5">
+          <Field>
+            <FieldLabel className="w-full justify-between">
+              <span className="flex items-center gap-1.5">
+                <ListIcon className="size-4 text-muted-foreground" />
+                {t('catch.fishGroup')}
               </span>
-            )}
-          </label>
-          <select
-            className="form-select"
-            value={catchEntry.fishGroup}
-            onChange={(e) => onUpdate(catchEntry.id, 'fishGroup', e.target.value as FishGroup)}
-            disabled={loading}
-            required
-            style={{ minHeight: '50px', fontSize: '16px', padding: '12px 16px' }}
-          >
-            {FISH_GROUPS.map(group => (
-              <option key={group} value={group}>
-                {t(`catch.fishGroups.${group.replace(/[^a-zA-Z]/g, '')}`)}
-              </option>
-            ))}
-          </select>
+              {totalCatches > 1 && <Badge variant="outline">#{index + 1}</Badge>}
+            </FieldLabel>
+            <Select
+              items={fishGroupItems}
+              value={catchEntry.fishGroup}
+              onValueChange={(value) => {
+                if (value) onUpdate(catchEntry.id, 'fishGroup', value as FishGroup);
+              }}
+              disabled={loading}
+            >
+              <SelectTrigger className="h-11 w-full text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {fishGroupItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
-        
-        <div className="col-8 col-sm-4 col-lg-5">
-          <label className="form-label fw-medium mb-2 d-flex align-items-center">
-            <IconWeight className="me-2" size={16} />
-            {t('catch.weightKg')}
-          </label>
-          <input
-            type="number"
-            className="form-control"
-            value={catchEntry.quantity || ''}
-            onChange={(e) => onUpdate(catchEntry.id, 'quantity', parseFloat(e.target.value) || 0)}
-            onWheel={(e) => e.currentTarget.blur()} // Prevent scroll from changing value
-            placeholder="0.0"
-            min="0"
-            step="0.1"
-            disabled={loading}
-            style={{ minHeight: '50px', fontSize: '16px', padding: '12px 16px' }}
-          />
+
+        <div className={totalCatches > 1 ? 'sm:col-span-4 lg:col-span-5' : 'sm:col-span-6 lg:col-span-7'}>
+          <Field>
+            <FieldLabel htmlFor={`weight-${catchEntry.id}`}>
+              <ScaleIcon className="size-4 text-muted-foreground" />
+              {t('catch.weightKg')}
+            </FieldLabel>
+            <Input
+              id={`weight-${catchEntry.id}`}
+              type="number"
+              inputMode="decimal"
+              className="h-11 text-base"
+              value={catchEntry.quantity || ''}
+              onChange={(e) =>
+                onUpdate(catchEntry.id, 'quantity', parseFloat(e.target.value) || 0)
+              }
+              onWheel={(e) => e.currentTarget.blur()}
+              placeholder="0.0"
+              min="0"
+              step="0.1"
+              disabled={loading}
+            />
+          </Field>
         </div>
-        
-        <div className="col-4 col-sm-2 col-lg-2">
-          {totalCatches > 1 && (
-            <>
-              <label className="form-label opacity-0 mb-2 d-flex align-items-center">
-                <span className="me-2" style={{ width: '16px' }}></span>
-                {t('catch.remove')}
-              </label>
-              <button
-                type="button"
-                className="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center"
-                onClick={() => onRemove(catchEntry.id)}
-                disabled={loading}
-                title={t('catch.removeCatchEntry')}
-                style={{ minHeight: '50px', fontSize: '15px' }}
-              >
-                <IconTrash size={18} />
-                <span className="d-none d-lg-inline ms-1">{t('catch.remove')}</span>
-              </button>
-            </>
-          )}
-        </div>
-        
-        {/* Photo Section */}
-        <div className="col-12 mt-3">
-          <PhotoSection
-            catchEntryId={catchEntry.id}
-            photos={catchEntry.photos || []}
-            fishGroup={catchEntry.fishGroup}
-            loading={loading}
-            isDarkMode={isDarkMode}
-            fileInputRef={{ 
-              current: fileInputRefs.current[catchEntry.id] || null 
-            }}
-            onFileUpload={onFileUpload}
-            onRemovePhoto={onRemovePhoto}
-            onSetRef={(el) => {
-              fileInputRefs.current[catchEntry.id] = el;
-            }}
-          />
-        </div>
-      </div>
+
+        {totalCatches > 1 && (
+          <div className="flex items-end sm:col-span-2">
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-11 w-full"
+              onClick={() => onRemove(catchEntry.id)}
+              disabled={loading}
+              title={t('catch.removeCatchEntry')}
+            >
+              <Trash2Icon data-icon="inline-start" />
+              <span className="sm:hidden lg:inline">{t('catch.remove')}</span>
+            </Button>
+          </div>
+        )}
+      </FieldGroup>
+
+      <PhotoSection
+        catchEntryId={catchEntry.id}
+        photos={catchEntry.photos || []}
+        fishGroup={catchEntry.fishGroup}
+        loading={loading}
+        fileInputRef={{ current: fileInputRefs.current[catchEntry.id] || null }}
+        onFileUpload={onFileUpload}
+        onRemovePhoto={onRemovePhoto}
+        onSetRef={(el) => {
+          fileInputRefs.current[catchEntry.id] = el;
+        }}
+      />
     </div>
   );
 };

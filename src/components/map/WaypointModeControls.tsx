@@ -1,5 +1,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { XIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface WaypointModeControlsProps {
   coordinates: { lat: number; lng: number } | null;
@@ -7,10 +11,6 @@ interface WaypointModeControlsProps {
   onConfirm: () => void;
 }
 
-/**
- * Action controls for waypoint selection mode
- * Shows current coordinates and Cancel/Confirm buttons
- */
 const WaypointModeControls: React.FC<WaypointModeControlsProps> = ({
   coordinates,
   onCancel,
@@ -18,55 +18,46 @@ const WaypointModeControls: React.FC<WaypointModeControlsProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  const formatCoordinate = (value: number): string => {
-    return value.toFixed(3);
-  };
+  const formatCoordinate = (value: number): string => value.toFixed(3);
 
   return (
     <>
       {/* Instruction badge */}
-      <div className="position-absolute" style={{ bottom: '62px', left: '10px', zIndex: 100 }}>
-        <span className="badge bg-dark text-white" style={{ opacity: 0.75 }}>
+      <div className="absolute bottom-16 left-2.5 z-10">
+        <Badge variant="secondary" className="bg-card/90 shadow-sm backdrop-blur">
           {t('waypoints.dragToSelect', 'Drag map to select waypoint location')}
-        </span>
+        </Badge>
       </div>
 
       {/* Control bar */}
-      <div className="position-absolute" style={{ bottom: '10px', left: '10px', right: '62px', zIndex: 100 }}>
-        <div className="input-group" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)', borderRadius: '8px', height: '44px' }}>
-          {coordinates && (
-            <input
-              type="text"
-              className="form-control"
-              value={`${formatCoordinate(coordinates.lat)}, ${formatCoordinate(coordinates.lng)}`}
-              readOnly
-              style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
-            />
-          )}
-          <button className="btn btn-success" type="button" onClick={onConfirm}>
-            <span className="d-none d-sm-inline">{t('waypoints.saveLocation', 'Save Location')}</span>
-            <span className="d-sm-none">Save</span>
-          </button>
-          <button className="btn btn-danger" type="button" onClick={onCancel} style={{ minWidth: '60px' }}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="icon icon-tabler"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              strokeWidth="2"
-              stroke="currentColor"
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M18 6l-12 12" />
-              <path d="M6 6l12 12" />
-            </svg>
-            <span className="d-none d-sm-inline ms-1">{t('common.cancel', 'Cancel')}</span>
-          </button>
-        </div>
+      <div className="absolute right-16 bottom-2.5 left-2.5 z-10 flex items-center gap-1.5 rounded-xl border bg-card/95 p-1 shadow-md backdrop-blur">
+        {coordinates && (
+          <Input
+            type="text"
+            value={`${formatCoordinate(coordinates.lat)}, ${formatCoordinate(coordinates.lng)}`}
+            readOnly
+            className="h-9 flex-1 font-mono text-xs"
+          />
+        )}
+        <Button
+          type="button"
+          className="h-9 shrink-0"
+          onClick={onConfirm}
+        >
+          <span className="hidden sm:inline">
+            {t('waypoints.saveLocation', 'Save Location')}
+          </span>
+          <span className="sm:hidden">Save</span>
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          className="h-9 shrink-0"
+          onClick={onCancel}
+        >
+          <XIcon data-icon="inline-start" />
+          <span className="hidden sm:inline">{t('common.cancel', 'Cancel')}</span>
+        </Button>
       </div>
     </>
   );

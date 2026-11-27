@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFish, IconCalendar, IconClock, IconMapPin } from '@tabler/icons-react';
+import { CalendarIcon, ClockIcon, FishIcon, MapPinIcon } from 'lucide-react';
 import { Trip } from '../types';
 import { getTripDayLabel } from '../utils/formatters';
 import { format, subDays } from 'date-fns';
@@ -8,14 +8,36 @@ import { fetchTrips } from '../api/pelagicDataService';
 import { useAuth } from '../contexts/AuthContext';
 import { anonymizeBoatName } from '../utils/demoData';
 import { hasTrackingDevice } from '../utils/userInfo';
-import { useIsDarkMode } from '../hooks/useIsDarkMode';
-import ModalShell from './ModalShell';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardAction,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 
 interface TripSelectionModalProps {
   onSelectTrip: (trip: Trip) => void;
   onClose: () => void;
 }
-
 
 interface TripsByDay {
   [dayLabel: string]: Trip[];
@@ -25,23 +47,15 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
   const { t } = useTranslation();
   const { currentUser } = useAuth();
 
-  // An administrator has no device of their own, but reports against the
-  // vessel they have selected, so ask about that rather than their account.
   const hasDevice = hasTrackingDevice(currentUser);
 
-  // State for recent trips
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isDarkMode = useIsDarkMode();
 
-
-  // Fetch trips from the last 5 days (only for users with tracking devices)
   useEffect(() => {
     const fetchRecentTrips = async () => {
-      // Skip trip fetching for users without tracking devices
       if (!hasDevice) {
-        console.log('User has no tracking device, skipping trip fetch');
         setLoading(false);
         setRecentTrips([]);
         return;
@@ -59,7 +73,7 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
           dateTo: today,
           imeis: currentUser?.imeis || [],
           includeDeviceInfo: false,
-          includeLastSeen: false
+          includeLastSeen: false,
         });
 
         setRecentTrips(trips);
@@ -76,23 +90,21 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
     }
   }, [currentUser, hasDevice]);
 
-  // Group trips by day with intuitive labels
   const tripsByDay = useMemo(() => {
     const grouped: TripsByDay = {};
-    
-    // Sort trips by start time (newest first)
-    const sortedTrips = [...recentTrips].sort((a, b) => 
-      new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+
+    const sortedTrips = [...recentTrips].sort(
+      (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
     );
-    
-    sortedTrips.forEach(trip => {
+
+    sortedTrips.forEach((trip) => {
       const dayLabel = getTripDayLabel(trip.startTime, t);
       if (!grouped[dayLabel]) {
         grouped[dayLabel] = [];
       }
       grouped[dayLabel].push(trip);
     });
-    
+
     return grouped;
   }, [recentTrips, t]);
 
@@ -105,16 +117,14 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
   const getDurationLabel = (durationSeconds: number) => {
     const hours = Math.floor(durationSeconds / 3600);
     const minutes = Math.floor((durationSeconds % 3600) / 60);
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
     }
     return `${minutes}m`;
   };
 
-  // Handle direct catch report (without trip selection)
   const handleDirectCatchReport = () => {
-    // Create a placeholder trip object for direct catch reporting
     const placeholderTrip: Trip = {
       id: `standalone_${Date.now()}`,
       startTime: new Date().toISOString(),
@@ -127,183 +137,140 @@ const TripSelectionModal: React.FC<TripSelectionModalProps> = ({ onSelectTrip, o
       distanceMeters: 0,
       created: new Date().toISOString(),
       updated: new Date().toISOString(),
-      imei: currentUser?.imeis?.[0] || ''
+      imei: currentUser?.imeis?.[0] || '',
     };
-    
+
     onSelectTrip(placeholderTrip);
   };
 
-
   return (
-    <ModalShell onClose={onClose} dialogClassName="modal-lg modal-dialog-scrollable">
-          <div className="modal-header">
-            <h3 className="modal-title">
-              <IconFish className="me-2" size={24} />
-              {t('catch.reportCatch')}
-            </h3>
-            <button
-              type="button"
-              className="btn-close"
-              onClick={onClose}
-            ></button>
-          </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FishIcon className="size-5 text-primary" />
+            {t('catch.reportCatch')}
+          </DialogTitle>
+          <DialogDescription>
+            {hasDevice ? t('catch.chooseSpecificTrip') : t('catch.reportCatchWithoutTracking')}
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="modal-body">
-            {/* Trip Selection Header - only show for tracking device users */}
-            {hasDevice && (
-              <div className="mb-4">
-                <h4 className="mb-0 d-flex align-items-center justify-content-center">
-                  <IconCalendar className="me-2 text-primary" size={20} />
-                  {t('catch.chooseSpecificTrip')}
-                </h4>
-              </div>
-            )}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {!hasDevice && (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FishIcon className="text-primary" />
+                </EmptyMedia>
+                <EmptyTitle>{t('catch.reportYourCatch')}</EmptyTitle>
+                <EmptyDescription>{t('catch.reportCatchWithoutTracking')}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
 
-            {/* For non-tracking users, show direct catch prompt */}
-            {!hasDevice && (
-              <div className="empty">
-                <div className="empty-icon">
-                  <IconFish size={48} className="text-primary" />
+          {hasDevice && (
+            <>
+              {loading ? (
+                <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <Spinner className="size-6 text-primary" />
+                  <p className="text-sm">{t('catch.loadingRecentTrips')}</p>
                 </div>
-                <p className="empty-title">{t('catch.reportYourCatch')}</p>
-                <p className="empty-subtitle text-muted">
-                  {t('catch.reportCatchWithoutTracking')}
-                </p>
-              </div>
-            )}
-
-            {hasDevice && (
-              <>
-                {loading ? (
-                  <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
-                    <div className="text-center">
-                      <div className="spinner-border text-primary mb-2" role="status">
-                        <span className="visually-hidden">{t('common.loading')}</span>
+              ) : error ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <FishIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('common.error')}</EmptyTitle>
+                    <EmptyDescription>{error}</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : recentTrips.length === 0 ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <FishIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('catch.noRecentTrips')}</EmptyTitle>
+                    <EmptyDescription>{t('catch.noRecentTripsMessage')}</EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="flex flex-col gap-5">
+                  {Object.entries(tripsByDay).map(([dayLabel, dayTrips]) => (
+                    <div key={dayLabel} className="flex flex-col gap-2">
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                        <CalendarIcon className="size-4" />
+                        <span>{dayLabel}</span>
                       </div>
-                      <p className="text-muted">{t('catch.loadingRecentTrips')}</p>
-                    </div>
-                  </div>
-                ) : error ? (
-                  <div className="empty">
-                    <div className="empty-icon">
-                      <IconFish size={48} className="text-muted" />
-                    </div>
-                    <p className="empty-title">{t('common.error')}</p>
-                    <p className="empty-subtitle text-muted">{error}</p>
-                  </div>
-                ) : recentTrips.length === 0 ? (
-                  <div className="empty">
-                    <div className="empty-icon">
-                      <IconFish size={48} className="text-muted" />
-                    </div>
-                    <p className="empty-title">{t('catch.noRecentTrips')}</p>
-                    <p className="empty-subtitle text-muted">
-                      {t('catch.noRecentTripsMessage')}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="trip-selection-list">
-                    {Object.entries(tripsByDay).map(([dayLabel, dayTrips]) => (
-                      <div key={dayLabel} className="mb-4">
-                        {/* Day header */}
-                        <div className="d-flex align-items-center mb-2">
-                          <IconCalendar size={16} className="me-2 text-muted" />
-                          <h5 className="mb-0 text-muted">{dayLabel}</h5>
-                        </div>
 
-                        {/* Trips for this day */}
-                        <div className="list-group">
-                          {dayTrips.map(trip => (
-                            <button
-                              key={trip.id}
-                              className="list-group-item list-group-item-action p-3 bg-light-subtle border-light-subtle shadow-sm"
-                              onClick={() => onSelectTrip(trip)}
-                              style={{ minHeight: '80px', cursor: 'pointer' }}
-                            >
-                              <div className="d-flex align-items-center">
-                                <div className="flex-grow-1">
-                                  <div className="d-flex align-items-center justify-content-between mb-1">
-                                    <div className="fw-bold">{anonymizeBoatName(trip.boatName)}</div>
-                                    <small className="text-muted">
-                                      {t('catch.tripId')}: {trip.id.length > 8 ? `${trip.id.slice(0, 8)}...` : trip.id}
-                                    </small>
-                                  </div>
-                                  <div className="d-flex align-items-center gap-3 text-muted small">
-                                    <span className="d-flex align-items-center">
-                                      <IconClock size={14} className="me-1" />
-                                      {formatTripTime(trip.startTime, trip.endTime)}
-                                    </span>
-                                    <span className={`badge ${isDarkMode ? 'bg-secondary text-light' : 'bg-light text-dark'}`}>
-                                      {getDurationLabel(trip.durationSeconds)}
-                                    </span>
-                                    <span className="d-flex align-items-center">
-                                      <IconMapPin size={14} className="me-1" />
-                                      {trip.community || t('common.unknown')}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Sticky Footer for Direct Catch Report */}
-          <div className={`${isDarkMode ? 'bg-dark' : 'bg-white'} border-top p-2`}>
-            <div className="card border-primary" style={{ backgroundColor: isDarkMode ? '#1a1d29' : '#f8f9ff', borderWidth: '2px' }}>
-              <div className="card-body py-2 px-3">
-                <div className="row align-items-center g-2">
-                  <div className="col-12 col-md-8">
-                    <div className="d-flex align-items-center">
-                      <div>
-                        {!hasDevice ? (
-                          <>
-                            <h3 className="mb-1 text-primary fw-bold">{t('catch.reportYourCatch')}</h3>
-                            <p className="text-muted mb-0">{t('catch.clickToContinue')}</p>
-                          </>
-                        ) : (
-                          <>
-                            <h3 className="mb-1 text-primary fw-bold">{t('catch.tripNotInList')}</h3>
-                            <p className="text-muted mb-0">{t('catch.reportWithoutTrip')}</p>
-                          </>
-                        )}
+                      <div className="flex flex-col gap-2">
+                        {dayTrips.map((trip) => (
+                          <button
+                            key={trip.id}
+                            type="button"
+                            onClick={() => onSelectTrip(trip)}
+                            className="flex min-h-20 w-full flex-col justify-center gap-1.5 rounded-xl border bg-card p-3 text-left transition-colors hover:bg-accent"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold">
+                                {anonymizeBoatName(trip.boatName)}
+                              </span>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {t('catch.tripId')}:{' '}
+                                {trip.id.length > 8 ? `${trip.id.slice(0, 8)}...` : trip.id}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <ClockIcon className="size-3.5" />
+                                {formatTripTime(trip.startTime, trip.endTime)}
+                              </span>
+                              <Badge variant="secondary">
+                                {getDurationLabel(trip.durationSeconds)}
+                              </Badge>
+                              <span className="flex items-center gap-1">
+                                <MapPinIcon className="size-3.5" />
+                                {trip.community || t('common.unknown')}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                  <div className="col-12 col-md-4">
-                    <div className="d-grid">
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-md d-flex align-items-center justify-content-center"
-                        onClick={handleDirectCatchReport}
-                        style={{ minHeight: '42px', gap: '8px' }}
-                      >
-                        <IconFish size={20} />
-                        <span className="fw-bold">{t('catch.reportCatchButton')}</span>
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              </div>
-            </div>
-          </div>
+              )}
+            </>
+          )}
+        </div>
 
-          <div className="modal-footer">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-            >
-              {t('common.cancel')}
-            </button>
-          </div>
-    </ModalShell>
+        {/* Direct Catch Report Callout */}
+        <Card size="sm" className="bg-primary/5 ring-primary/30">
+          <CardHeader className="items-center">
+            <CardTitle className="text-primary">
+              {!hasDevice ? t('catch.reportYourCatch') : t('catch.tripNotInList')}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {!hasDevice ? t('catch.clickToContinue') : t('catch.reportWithoutTrip')}
+            </CardDescription>
+            <CardAction>
+              <Button size="lg" onClick={handleDirectCatchReport}>
+                <FishIcon data-icon="inline-start" />
+                {t('catch.reportCatchButton')}
+              </Button>
+            </CardAction>
+          </CardHeader>
+        </Card>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

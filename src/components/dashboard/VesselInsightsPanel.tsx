@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { IconChartLine, IconRoute, IconClock, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ClockIcon,
+  LineChartIcon,
+  RouteIcon,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { cn } from 'cn';
 import { VesselInsights } from '../../types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Separator } from '@/components/ui/separator';
 
 interface VesselInsightsPanelProps {
   insights: VesselInsights;
@@ -13,101 +23,87 @@ const VesselInsightsPanel: React.FC<VesselInsightsPanelProps> = ({ insights, tri
   const [isExpanded, setIsExpanded] = useState(false);
 
   const insightsContent = (
-    <div className="list-group list-group-flush">
-      <div className="list-group-item px-0 py-2">
-        <div className="row align-items-center">
-          <div className="col-auto">
-            <span className="bg-primary text-white avatar avatar-sm">
-              <IconRoute size={18} />
-            </span>
-          </div>
-          <div className="col">
-            <div className="fw-medium">
-              {t('insights.totalTrips')}
-            </div>
-            <div className="text-muted small">
-              {tripsCount} {t('common.total')} ({insights.activeTrips} {t('vessel.active')})
-            </div>
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center gap-3">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <RouteIcon className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">{t('insights.totalTrips')}</div>
+          <div className="text-xs text-muted-foreground">
+            {tripsCount} {t('common.total')} ({insights.activeTrips} {t('vessel.active')})
           </div>
         </div>
       </div>
-      
-      <div className="list-group-item px-0 py-2">
-        <div className="row align-items-center">
-          <div className="col-auto">
-            <span className="bg-green text-white avatar avatar-sm">
-              <IconClock size={18} />
-            </span>
-          </div>
-          <div className="col">
-            <div className="fw-medium">
-              {t('insights.averageSpeed')}
-            </div>
-            <div className="text-muted small">
-              {insights.avgSpeed} km/h
-            </div>
-          </div>
+
+      <Separator />
+
+      <div className="flex items-center gap-3">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+          <ClockIcon className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">{t('insights.averageSpeed')}</div>
+          <div className="text-xs text-muted-foreground">{insights.avgSpeed} km/h</div>
         </div>
       </div>
-      
-      <div className="list-group-item px-0 py-2 border-0">
-        <div className="row align-items-center">
-          <div className="col-auto">
-            <span className="bg-azure text-white avatar avatar-sm">
-              <IconRoute size={18} />
-            </span>
-          </div>
-          <div className="col">
-            <div className="fw-medium">
-              {t('insights.totalDistance')}
-            </div>
-            <div className="text-muted small">
-              {insights.totalDistance} km
-            </div>
-          </div>
+
+      <Separator />
+
+      <div className="flex items-center gap-3">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+          <RouteIcon className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">{t('insights.totalDistance')}</div>
+          <div className="text-xs text-muted-foreground">{insights.totalDistance} km</div>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="card">
-      {/* Mobile: Collapsible header */}
-      <div 
-        className={`card-header d-md-none ${isExpanded ? 'bg-primary-lt border-primary' : ''}`} 
-        style={{ cursor: 'pointer' }} 
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <button className="accordion-button" type="button">
-          <IconChartLine className="icon me-2 text-primary" />
-          <h3 className="card-title m-0">{t('dashboard.vesselInsights')}</h3>
-          <div className="accordion-button-toggle">
-            {isExpanded ? <IconChevronUp size={20} /> : <IconChevronDown size={20} />}
-          </div>
-        </button>
-      </div>
+    <Card size="sm">
+      {/* Mobile: Collapsible */}
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded} className="md:hidden">
+        <CollapsibleTrigger
+          render={
+            <button
+              type="button"
+              className={cn(
+                'flex w-full items-center justify-between px-3 py-1 text-left font-medium transition-colors',
+                isExpanded && 'text-primary'
+              )}
+            />
+          }
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <LineChartIcon className="size-4 text-primary" />
+            {t('dashboard.vesselInsights')}
+          </span>
+          {isExpanded ? (
+            <ChevronUpIcon className="size-4 text-muted-foreground" />
+          ) : (
+            <ChevronDownIcon className="size-4 text-muted-foreground" />
+          )}
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-3">{insightsContent}</CardContent>
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* Desktop: Always visible content */}
-      <div className="d-none d-md-block">
-        <div className="card-body p-2">
-          <div className="d-flex align-items-center justify-content-between mb-2">
-            <div className="d-flex align-items-center">
-              <IconChartLine className="icon me-2 text-primary" />
-              <h3 className="card-title m-0">{t('dashboard.vesselInsights')}</h3>
-            </div>
-          </div>
-          {insightsContent}
-        </div>
+      {/* Desktop: Always visible */}
+      <div className="hidden md:flex md:flex-col md:gap-3">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <LineChartIcon className="size-4 text-primary" />
+            {t('dashboard.vesselInsights')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>{insightsContent}</CardContent>
       </div>
-
-      {/* Mobile: Collapsible content */}
-      <div className={`collapse d-md-none ${isExpanded ? 'show' : ''}`} style={{ transition: 'height 0.35s ease' }}>
-        <div className="card-body p-2">
-          {insightsContent}
-        </div>
-      </div>
-    </div>
+    </Card>
   );
 };
 
-export default VesselInsightsPanel; 
+export default VesselInsightsPanel;

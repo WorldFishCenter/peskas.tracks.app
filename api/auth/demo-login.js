@@ -1,4 +1,5 @@
 import { issueToken } from '../_utils/token.js';
+import { createEndpoint } from '../_utils/endpoint.js';
 
 /**
  * The demo account.
@@ -27,33 +28,9 @@ export const DEMO_USER = Object.freeze({
   isDemoMode: true
 });
 
-export default async function handler(req, res) {
-  // Set CORS headers FIRST (before any method checks)
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
-  );
+export default createEndpoint({ methods: ['POST'], auth: 'public', db: false }, async (_req, res) => {
+  const user = { ...DEMO_USER, imeis: [...DEMO_USER.imeis] };
+  const token = await issueToken(user);
 
-  // Handle preflight OPTIONS request BEFORE method validation
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // Only allow POST requests (after handling OPTIONS)
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  try {
-    const user = { ...DEMO_USER, imeis: [...DEMO_USER.imeis] };
-    const token = await issueToken(user);
-
-    return res.status(200).json({ ...user, token });
-  } catch (error) {
-    console.error('Error during demo login:', error);
-    return res.status(500).json({ error: 'Demo login failed' });
-  }
-}
+  return res.status(200).json({ ...user, token });
+});

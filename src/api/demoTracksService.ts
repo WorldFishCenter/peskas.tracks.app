@@ -1,6 +1,12 @@
 import { startOfDay, endOfDay } from 'date-fns';
 import i18n from '../i18n';
-import type { TripPoint, LiveLocation, Waypoint } from '../types';
+import type {
+  TripPoint,
+  LiveLocation,
+  Waypoint,
+  FisherStatsResponse,
+  FisherPerformanceResponse
+} from '../types';
 import { assetFetch } from './httpClient';
 
 /**
@@ -182,3 +188,284 @@ export const fetchDemoLiveLocations = async (): Promise<LiveLocation[]> =>
 
 export const fetchDemoWaypoints = async (userId: string): Promise<Waypoint[]> =>
   replayWaypoints(await loadSnapshot(), userId, kind => i18n.t(`waypoints.demo.${kind}`));
+
+const DEMO_FISH_GROUPS = [
+  'tuna/tuna-like',
+  'large pelagics',
+  'reef fish',
+  'small pelagics'
+] as const;
+
+const round1 = (value: number): number => Math.round(value * 10) / 10;
+const round2 = (value: number): number => Math.round(value * 100) / 100;
+
+interface DemoDerivedTrip {
+  tripId: string;
+  date: string;
+  endMs: number;
+  durationHours: number;
+  maxRangeMeters: number;
+  tripType: 'offshore' | 'mid-range' | 'nearshore';
+  catchKg: number;
+  fishGroup?: string;
+  cpue: number;
+  kgPerLiter: number;
+  searchRatio: number;
+}
+
+/**
+ * Derive deterministic catch and efficiency records from the frozen snapshot's
+ * trips so Map, Catches, and Efficiency agree without Math.random().
+ */
+const deriveDemoTrips = (
+  snapshot: DemoSnapshot,
+  dateFrom: Date,
+  dateTo: Date,
+  now: Date
+): DemoDerivedTrip[] => {
+  const from = startOfDay(dateFrom).getTime();
+  const to = endOfDay(dateTo).getTime();
+  const derived: DemoDerivedTrip[] = [];
+
+  snapshot.trips.forEach((fixes, index) => {
+    if (fixes.length === 0) return;
+
+    const startTime = replayTime(snapshot, fixes[0][0], now);
+    const endTime = replayTime(snapshot, fixes[fixes.length - 1][0], now);
+    const endMs = Date.parse(endTime);
+    if (endMs < from || endMs > to) return;
+
+    const durationHours = Math.max(1, (endMs - Date.parse(startTime)) / 3_600_000);
+    const maxRangeMeters = Math.max(...fixes.map(fix => fix[5] || 0));
+    const tripType: DemoDerivedTrip['tripType'] =
+      maxRangeMeters >= 8000 ? 'offshore' : maxRangeMeters >= 3000 ? 'mid-range' : 'nearshore';
+
+    // Keep roughly 75% successful trips deterministically by index.
+    const hasCatch = index % 4 !== 1;
+    const baseCatch = 12 + (maxRangeMeters / 1000) * 1.4 + durationHours * 1.6;
+    const catchKg = hasCatch ? round1(Math.min(48, Math.max(8, baseCatch))) : 0;
+    const fishGroup = hasCatch ? DEMO_FISH_GROUPS[index % DEMO_FISH_GROUPS.length] : undefined;
+
+    const fuelLiters = Math.max(4, (maxRangeMeters / 1000) * 0.9 + durationHours * 1.2);
+    const cpue = hasCatch ? round1(catchKg / durationHours) : 0;
+    const kgPerLiter = hasCatch ? round1(catchKg / fuelLiters) : 0;
+    const searchRatio = round2(Math.min(0.6, Math.max(0.18, 0.25 + (index % 4) * 0.05)));
+
+    derived.push({
+      tripId: `demo-trip-${index + 1}`,
+      date: endTime,
+      endMs,
+      durationHours,
+      maxRangeMeters,
+      tripType,
+      catchKg,
+      fishGroup,
+      cpue,
+      kgPerLiter,
+      searchRatio
+    });
+  });
+
+  return derived.sort((a, b) => a.endMs - b.endMs);
+};
+
+/**
+ * Deterministic fisher catch stats derived from the frozen snapshot.
+ */
+export const replayFisherStats = (
+  snapshot: DemoSnapshot,
+  dateFrom?: Date,
+  dateTo?: Date,
+  compareWith: 'community' | 'previous' = 'community',
+  now: Date = new Date()
+): FisherStatsResponse => {
+  const endDate = dateTo ?? now;
+  const startDate = dateFrom ?? new Date(endDate.getTime() - 30 * DAY_MS);
+  const trips = deriveDemoTrips(snapshot, startDate, endDate, now);
+
+  const totalTrips = trips.length;
+  const successfulTrips = trips.filter(trip => trip.catchKg > 0).length;
+  const totalCatch = round1(trips.reduce((sum, trip) => sum + trip.catchKg, 0));
+  const avgCatchPerTrip = totalTrips > 0 ? round1(totalCatch / totalTrips) : 0;
+  const successRate = totalTrips > 0 ? successfulTrips / totalTrips : 0;
+
+  const groupTotals = new Map<string, { totalKg: number; count: number }>();
+  for (const trip of trips) {
+    if (!trip.fishGroup || trip.catchKg <= 0) continue;
+    const existing = groupTotals.get(trip.fishGroup) ?? { totalKg: 0, count: 0 };
+    existing.totalKg += trip.catchKg;
+    existing.count += 1;
+    groupTotals.set(trip.fishGroup, existing);
+  }
+
+  const catchByType = Array.from(groupTotals.entries()).map(([fishGroup, data]) => ({
+    fishGroup,
+    totalKg: round1(data.totalKg),
+    count: data.count
+  }));
+
+  const recentTrips = [...trips]
+    .reverse()
+    .slice(0, 5)
+    .map(trip => ({
+      tripId: trip.tripId,
+      date: trip.date,
+      catch_kg: trip.catchKg,
+      fishGroup: trip.fishGroup
+    }));
+
+  const timeSeries = trips.map(trip => ({
+    date: trip.date.split('T')[0],
+    catch_kg: trip.catchKg
+  }));
+
+  const durationMs = endDate.getTime() - startDate.getTime();
+  const prevStart = new Date(startDate.getTime() - durationMs);
+  const prevLabel = `${prevStart.toISOString().split('T')[0]} - ${startDate.toISOString().split('T')[0]}`;
+
+  const comparison =
+    compareWith === 'community'
+      ? {
+          type: 'community' as const,
+          avgCatch: round1(avgCatchPerTrip * 0.92),
+          avgSuccessRate: round2(Math.min(1, successRate * 0.95)),
+          basedOn: `12 fishers in ${DEMO_COMMUNITY}`,
+          hasData: totalTrips > 0
+        }
+      : {
+          type: 'previous' as const,
+          avgCatch: round1(avgCatchPerTrip * 0.96),
+          avgSuccessRate: round2(Math.min(1, successRate * 0.97)),
+          basedOn: prevLabel,
+          hasData: totalTrips > 0
+        };
+
+  return {
+    summary: {
+      totalCatch,
+      totalTrips,
+      successfulTrips,
+      successRate,
+      avgCatchPerTrip
+    },
+    catchByType,
+    recentTrips,
+    timeSeries,
+    comparison
+  };
+};
+
+/**
+ * Deterministic fisher efficiency figures derived from the frozen snapshot.
+ */
+export const replayFisherPerformance = (
+  snapshot: DemoSnapshot,
+  dateFrom?: Date,
+  dateTo?: Date,
+  compareWith: 'community' | 'previous' = 'community',
+  now: Date = new Date()
+): FisherPerformanceResponse => {
+  const endDate = dateTo ?? now;
+  const startDate = dateFrom ?? new Date(endDate.getTime() - 30 * DAY_MS);
+  const trips = deriveDemoTrips(snapshot, startDate, endDate, now);
+
+  const buckets: Record<'offshore' | 'mid-range' | 'nearshore', { count: number; totalCatch: number }> = {
+    offshore: { count: 0, totalCatch: 0 },
+    'mid-range': { count: 0, totalCatch: 0 },
+    nearshore: { count: 0, totalCatch: 0 }
+  };
+
+  for (const trip of trips) {
+    buckets[trip.tripType].count += 1;
+    buckets[trip.tripType].totalCatch += trip.catchKg;
+  }
+
+  const tripTypes = {
+    offshore: {
+      count: buckets.offshore.count,
+      avgCatch: buckets.offshore.count > 0 ? round1(buckets.offshore.totalCatch / buckets.offshore.count) : 0
+    },
+    'mid-range': {
+      count: buckets['mid-range'].count,
+      avgCatch: buckets['mid-range'].count > 0 ? round1(buckets['mid-range'].totalCatch / buckets['mid-range'].count) : 0
+    },
+    nearshore: {
+      count: buckets.nearshore.count,
+      avgCatch: buckets.nearshore.count > 0 ? round1(buckets.nearshore.totalCatch / buckets.nearshore.count) : 0
+    }
+  };
+
+  const avg = (values: number[]): number =>
+    values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+
+  const successful = trips.filter(trip => trip.catchKg > 0);
+  const yourCpue = round1(avg(successful.map(trip => trip.cpue)));
+  const yourFuel = round1(avg(successful.map(trip => trip.kgPerLiter)));
+  const yourSearch = round2(avg(trips.map(trip => trip.searchRatio)));
+
+  const cpueFactor = compareWith === 'community' ? 0.88 : 0.94;
+  const fuelFactor = compareWith === 'community' ? 0.91 : 0.95;
+  const searchFactor = compareWith === 'community' ? 1.1 : 1.05;
+
+  const compCpue = round1(yourCpue * cpueFactor);
+  const compFuel = round1(yourFuel * fuelFactor);
+  const compSearch = round2(yourSearch * searchFactor);
+
+  const pct = (yours: number, theirs: number): number =>
+    theirs === 0 ? 0 : Math.round(((yours - theirs) / theirs) * 100);
+
+  const bestTrips = [...successful]
+    .sort((a, b) => b.cpue - a.cpue)
+    .slice(0, 5)
+    .map(trip => ({
+      tripId: trip.tripId,
+      date: trip.date,
+      tripType: trip.tripType,
+      cpue: trip.cpue
+    }));
+
+  const durationMs = endDate.getTime() - startDate.getTime();
+  const prevStart = new Date(startDate.getTime() - durationMs);
+  const prevLabel = `${prevStart.toISOString().split('T')[0]} - ${startDate.toISOString().split('T')[0]}`;
+
+  return {
+    tripTypes,
+    metrics: {
+      cpue_kg_per_hour: {
+        yourAvg: yourCpue,
+        comparisonAvg: compCpue,
+        percentDiff: pct(yourCpue, compCpue)
+      },
+      kg_per_liter: {
+        yourAvg: yourFuel,
+        comparisonAvg: compFuel,
+        percentDiff: pct(yourFuel, compFuel)
+      },
+      search_ratio: {
+        yourAvg: yourSearch,
+        comparisonAvg: compSearch,
+        percentDiff: pct(yourSearch, compSearch)
+      }
+    },
+    bestTrips,
+    comparison: {
+      type: compareWith,
+      basedOn: compareWith === 'community' ? `12 fishers in ${DEMO_COMMUNITY}` : prevLabel,
+      hasData: trips.length > 0
+    }
+  };
+};
+
+export const fetchDemoFisherStats = async (
+  dateFrom?: Date,
+  dateTo?: Date,
+  compareWith: 'community' | 'previous' = 'community'
+): Promise<FisherStatsResponse> =>
+  replayFisherStats(await loadSnapshot(), dateFrom, dateTo, compareWith);
+
+export const fetchDemoFisherPerformance = async (
+  dateFrom?: Date,
+  dateTo?: Date,
+  compareWith: 'community' | 'previous' = 'community'
+): Promise<FisherPerformanceResponse> =>
+  replayFisherPerformance(await loadSnapshot(), dateFrom, dateTo, compareWith);
