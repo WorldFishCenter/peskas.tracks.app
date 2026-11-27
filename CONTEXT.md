@@ -55,8 +55,15 @@ _Avoid_: marker, pin, bookmark, favourite
 ### Catch
 
 **Catch event**:
-A fisher's report of what a trip landed, including a report of landing nothing.
+A fisher's record of what a trip landed in one fish group, or that it landed
+nothing.
 _Avoid_: catch, landing, report, submission
+
+**Catch report**:
+Everything a fisher sends from the catch form in one go for one trip: one catch
+event per fish group, or a single no-catch event. Its catch events share a
+report id and the answers that belong to the trip, such as fuel used.
+_Avoid_: submission, form
 
 **Fish group**:
 The category a catch is recorded against — reef fish, sharks/rays, small

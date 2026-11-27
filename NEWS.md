@@ -1,3 +1,11 @@
+# tracks-explorer 2.12
+
+### New Features
+- **Fuel Used per Trip**: When reporting a catch, or no catch, fishers can now say how many litres of fuel the trip used. It is optional.
+
+### Improvements
+- **No Duplicate Catches After a Retry**: When a weak connection makes the app send a catch report again, it is saved once instead of twice.
+
 # tracks-explorer 2.11
 
 ### Improvements

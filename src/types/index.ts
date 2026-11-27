@@ -139,7 +139,7 @@ export interface MobileTooltip {
 export interface TripPath {
   tripId: string;
   name: string;
-  path: number[][];
+  path: [number, number][];
   color: RGB;
   width: number;
 }
@@ -170,6 +170,7 @@ export interface VesselInsights {
 
 // Color types
 export type RGB = [number, number, number];
+export type RGBA = [number, number, number, number];
 
 // GPS coordinate types
 export interface GPSCoordinate {
@@ -193,6 +194,9 @@ export interface CatchEvent {
   username?: string; // Username for non-PDS users, undefined for PDS users
   boatName?: string;
   community?: string;
+  fuel_liters?: number;
+  reportId?: string;
+  entryId?: string;
   reportedAt: string;
 }
 
@@ -213,6 +217,9 @@ export interface CatchEventFormData {
   quantity: number;
   photos?: string[]; // Base64 encoded photos
   gps_photo?: GPSCoordinate[]; // GPS coordinates for each photo (same index as photos array)
+  fuel_liters?: number;
+  reportId?: string;
+  entryId?: string;
 }
 
 export interface MultipleCatchFormData {
@@ -220,6 +227,8 @@ export interface MultipleCatchFormData {
   date: Date;
   catches: CatchEntry[];
   noCatch: boolean;
+  fuel_liters?: number;
+  reportId?: string;
 }
 
 // Fisher Statistics types

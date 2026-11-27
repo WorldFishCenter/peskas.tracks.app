@@ -42,6 +42,9 @@ export async function submitCatchEvent(
       catch_outcome: catchOutcome,
       imei,
       username,
+      reportId: catchData.reportId,
+      entryId: catchData.entryId,
+      fuel_liters: catchData.fuel_liters,
       // Include admin flag to protect real data
       isAdmin: isAdminMode(),
       // Only include fishGroup and quantity for actual catches (catch_outcome = 1)
@@ -90,14 +93,12 @@ export async function submitCatchEvent(
 
 /**
  * Submit a no-catch event report
- * @param tripId - The trip ID
- * @param date - The date of the event
+ * @param report - The trip ID, date, report ID and fuel of the catch report
  * @param imei - IMEI for PDS users (can be null for non-PDS users)
  * @param username - Username for non-PDS users (can be null for PDS users)
  */
 export async function submitNoCatchEvent(
-  tripId: string,
-  date: Date,
+  { tripId, date, reportId, fuel_liters }: Pick<MultipleCatchFormData, 'tripId' | 'date' | 'reportId' | 'fuel_liters'>,
   imei: string | null,
   username: string | null = null
 ): Promise<CatchEvent> {
@@ -125,6 +126,8 @@ export async function submitNoCatchEvent(
       catch_outcome: 0,
       imei,
       username,
+      reportId,
+      fuel_liters,
       // Include admin flag to protect real data
       isAdmin: isAdminMode()
     };
@@ -239,7 +242,7 @@ export async function submitMultipleCatchEvents(
     if (formData.noCatch) {
       // Submit a proper no-catch event
       console.log('Submitting no-catch event for trip:', formData.tripId);
-      const noCatchEvent = await submitNoCatchEvent(formData.tripId, formData.date, imei, username);
+      const noCatchEvent = await submitNoCatchEvent(formData, imei, username);
       return [noCatchEvent];
     }
 
@@ -253,7 +256,10 @@ export async function submitMultipleCatchEvents(
           fishGroup: catchEntry.fishGroup,
           quantity: catchEntry.quantity,
           photos: catchEntry.photos,
-          gps_photo: catchEntry.gps_photo
+          gps_photo: catchEntry.gps_photo,
+          fuel_liters: formData.fuel_liters,
+          reportId: formData.reportId,
+          entryId: catchEntry.id
         };
         const result = await submitCatchEvent(catchData, imei, username, 1); // Explicitly set catch_outcome = 1
         results.push(result);

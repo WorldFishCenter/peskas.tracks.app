@@ -21,6 +21,11 @@ This document defines the structure of documents stored in the `catch-events` Mo
 | `quantity` | Number | Conditional* | Number/amount of fish caught (required when `catch_outcome = 1`) |
 | `photos` | Array | No | Array of base64-encoded photo strings |
 | `gps_photo` | Array | No | Array of GPS coordinate objects corresponding to each photo |
+| `username` | String | No | Username of the fisher, the identifier for fishers without an IMEI |
+| `isAdminSubmission` | Boolean | No | `true` for an administrator's test submission; identifiers are then `'admin'` |
+| `fuel_liters` | Number | No | Litres of fuel the trip used (0 or more). Belongs to the trip: every document of one catch report carries the same value (since 2.12) |
+| `reportId` | String | No | Shared by every document of one catch report (since 2.12) |
+| `entryId` | String | No | The catch entry within the report; `null` for a no-catch report (since 2.12) |
 
 *Conditional fields are only present when `catch_outcome = 1` (successful catch)
 
@@ -104,6 +109,8 @@ Each object in the `gps_photo` array contains:
 3. **quantity**: Required when `catch_outcome = 1`, must be a positive number
 4. **photos**: Maximum of 3 photos per catch event (enforced at application level)
 5. **gps_photo**: Each GPS coordinate object must contain valid latitude/longitude values
+6. **fuel_liters**: Optional; a number, 0 or more (the app allows at most 2 decimals)
+7. **reportId / entryId**: Optional strings of at most 100 characters. A POST with the same pair as a stored document is not stored again
 
 ### Indexes
 
@@ -112,3 +119,4 @@ Recommended indexes for optimal query performance:
 - `{ "imei": 1, "reportedAt": -1 }`
 - `{ "date": 1 }`
 - `{ "catch_outcome": 1 }`
+- `{ "reportId": 1, "entryId": 1 }`, unique, only on documents that have `reportId`

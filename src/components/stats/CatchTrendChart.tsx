@@ -11,7 +11,8 @@ import {
   LineController,
   PointElement,
   Tooltip,
-  ChartConfiguration
+  ChartConfiguration,
+  ChartDataset
 } from 'chart.js';
 
 // Register Chart.js components
@@ -66,7 +67,7 @@ const CatchTrendChart: React.FC<CatchTrendChartProps> = ({ data, comparisonAvg, 
     const catchData = data.filter(point => point.catch_kg > 0);
 
     // Prepare datasets
-    const datasets: any[] = [
+    const datasets: ChartDataset<'bar' | 'line', number[]>[] = [
       {
         type: 'bar',
         data: catchData.map(point => point.catch_kg),
@@ -94,7 +95,7 @@ const CatchTrendChart: React.FC<CatchTrendChartProps> = ({ data, comparisonAvg, 
     }
 
     // Create chart configuration
-    const config: ChartConfiguration<'bar'> = {
+    const config: ChartConfiguration<'bar' | 'line', number[], string> = {
       type: 'bar',
       data: {
         labels: catchData.map(point => format(parseISO(point.date), 'MMM dd')),

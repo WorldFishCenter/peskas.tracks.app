@@ -43,7 +43,6 @@ interface MapContainerProps {
 const MapContainer: React.FC<MapContainerProps> = ({
   loading,
   errorMessage,
-  dataAvailable,
   dateFrom,
   dateTo,
   selectedTripId,
@@ -51,9 +50,6 @@ const MapContainer: React.FC<MapContainerProps> = ({
   centerOnLiveLocations,
   onSelectVessel,
   onRetry,
-  onTryWiderDateRange,
-  renderNoImeiDataMessage,
-  isViewingLiveLocations = false,
   onCenterOnLiveLocations,
   isAdminMode = false,
   adminHasNoVesselsSelected = false,

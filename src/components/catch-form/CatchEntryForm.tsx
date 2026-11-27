@@ -33,12 +33,10 @@ const CatchEntryForm: React.FC<CatchEntryFormProps> = ({
   totalCatches,
   loading,
   isDarkMode,
-  isDirectCatch,
   fileInputRefs,
   onUpdate,
   onRemove,
   onFileUpload,
-  onTriggerFileInput,
   onRemovePhoto
 }) => {
   const { t } = useTranslation();

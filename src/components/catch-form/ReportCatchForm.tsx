@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFish, IconCheck, IconAlertTriangle, IconCalendar, IconPlus, IconBan, IconCloudUpload } from '@tabler/icons-react';
+import { IconFish, IconCheck, IconAlertTriangle, IconCalendar, IconPlus, IconBan, IconCloudUpload, IconGasStation } from '@tabler/icons-react';
 import { Trip, MultipleCatchFormData, CatchEntry, GPSCoordinate } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatTripDate } from '../../utils/formatters';
@@ -37,6 +37,7 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
   // Form state for multiple catches
   const [formData, setFormData] = useState<MultipleCatchFormData>(() => ({
     tripId: trip.id,
+    reportId: `report_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
     date: isDirectCatch ? new Date() : new Date(trip.endTime),
     catches: [{
       id: `catch_${Date.now()}`,
@@ -229,7 +230,7 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
 
       // Add each optimized payload to upload queue
       for (const payload of optimizedPayloads) {
-        const id = await uploadManager.addUpload('catch', {
+        const id = await uploadManager.addUpload({
           ...payload,
           // Store imei and username separately based on user type
           imei: currentUser?.imeis?.[0] || null,
@@ -396,6 +397,33 @@ const ReportCatchForm: React.FC<ReportCatchFormProps> = ({ trip, onClose, onSucc
                           />
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="card mb-3 mb-lg-4">
+                    <div className="card-body p-3 p-lg-4">
+                      <label htmlFor="fuelLiters" className="d-flex align-items-center mb-2 fw-bold">
+                        <IconGasStation className="me-2" size={20} />
+                        {t('catch.fuelUsed')}
+                      </label>
+                      <p className="text-muted mb-2 small">{t('catch.fuelUsedDescription')}</p>
+                      <input
+                        id="fuelLiters"
+                        type="number"
+                        inputMode="decimal"
+                        className="form-control"
+                        value={formData.fuel_liters ?? ''}
+                        onChange={(e) => {
+                          const liters = parseFloat(e.target.value);
+                          setFormData(prev => ({ ...prev, fuel_liters: liters >= 0 ? liters : undefined }));
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        placeholder="0.0"
+                        min="0"
+                        step="0.01"
+                        disabled={loading}
+                        style={{ minHeight: '50px', fontSize: '16px', padding: '12px 16px' }}
+                      />
                     </div>
                   </div>
 

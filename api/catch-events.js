@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   try {
     // Handle POST request - Create catch event
     if (req.method === 'POST') {
-      const { tripId, date, fishGroup, quantity, imei, username, catch_outcome, photos, gps_photo } = req.body;
+      const { tripId, date, fishGroup, quantity, imei, username, catch_outcome, photos, gps_photo, fuel_liters, reportId, entryId } = req.body;
       
       // Validate required fields - at least one identifier (imei or username) must be present
       // Note: imei or username can be explicitly null, we just need at least one to be a non-empty string
@@ -59,7 +59,17 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Quantity must be a positive number' });
         }
       }
-      
+
+      const hasFuel = fuel_liters != null;
+      if (hasFuel && !(Number.isFinite(fuel_liters) && fuel_liters >= 0)) {
+        return res.status(400).json({ error: 'fuel_liters must be a number of litres, 0 or more' });
+      }
+
+      const isOptionalId = (id) => id === undefined || id === null || (typeof id === 'string' && id.length > 0 && id.length <= 100);
+      if (!isOptionalId(reportId) || !isOptionalId(entryId)) {
+        return res.status(400).json({ error: 'reportId and entryId must be short strings' });
+      }
+
       const userIdentifier = imei || username;
       console.log(`Creating catch event for trip ${tripId} by identifier ${userIdentifier}`);
 
@@ -102,6 +112,7 @@ export default async function handler(req, res) {
         updatedAt: new Date(),
         // Mark admin submissions for easier identification
         ...(isAdminSubmission && { isAdminSubmission: true }),
+        ...(hasFuel && { fuel_liters }),
         // Only include fishGroup, quantity, photos, and gps_photo for actual catches (catch_outcome = 1)
         ...(catch_outcome === 1 && {
           fishGroup,
@@ -111,15 +122,22 @@ export default async function handler(req, res) {
         })
       };
       
-      // Insert the catch event
+      // A retried upload sends the same reportId + entryId again: keep the first copy.
+      // The filter must match idx_report_entry_unique exactly, so MongoDB retries a clash itself.
+      if (reportId) {
+        const { value: storedEvent, lastErrorObject } = await catchEventsCollection.findOneAndUpdate(
+          { reportId, entryId: entryId || null },
+          { $setOnInsert: catchEvent },
+          { upsert: true, returnDocument: 'after', includeResultMetadata: true }
+        );
+        const created = !lastErrorObject?.updatedExisting;
+        console.log(`Catch event ${created ? 'created' : 'already stored'} with ID: ${storedEvent._id}`);
+        return res.status(created ? 201 : 200).json(storedEvent);
+      }
+
       const result = await catchEventsCollection.insertOne(catchEvent);
-      
-      // Return the created document
       const createdEvent = await catchEventsCollection.findOne({ _id: result.insertedId });
-      
       console.log(`Catch event created with ID: ${result.insertedId}`);
-      
-      
       return res.status(201).json(createdEvent);
     }
     
