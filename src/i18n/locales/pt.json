@@ -374,6 +374,8 @@
     "reportNoCatch": "Reportar Nenhuma Captura",
     "noCatch": "Nenhuma Captura",
     "reportNoCatchDescription": "Reportar que nenhum peixe foi capturado",
+    "fuelUsed": "Combustível usado (litros)",
+    "fuelUsedDescription": "Opcional. Quantos litros de combustível esta viagem gastou",
     "catches": "Capturas",
     "youCanAddUpTo": "Você pode adicionar até 5 grupos diferentes de peixes",
     "takePhoto": "Tirar Foto",

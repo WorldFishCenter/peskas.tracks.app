@@ -110,6 +110,68 @@ describe('reporting a catch', () => {
     const [stored] = await db.collection('catch-events').find({}).toArray();
     expect(stored.catch_outcome).toBe(0);
   });
+
+  it('keeps the fuel a trip used, with or without a catch', async () => {
+    await callHandler(createCatchEvent, { method: 'POST', body: aCatch({ fuel_liters: 12.5 }) });
+    await callHandler(createCatchEvent, {
+      method: 'POST',
+      body: aCatch({ tripId: 'trip-2', catch_outcome: 0, fishGroup: undefined, quantity: undefined, fuel_liters: 0 }),
+    });
+    await callHandler(createCatchEvent, { method: 'POST', body: aCatch({ tripId: 'trip-3' }) });
+
+    const stored = await db.collection('catch-events').find({}).sort({ tripId: 1 }).toArray();
+    expect(stored.map(e => e.fuel_liters)).toEqual([12.5, 0, undefined]);
+  });
+});
+
+// The app re-sends a whole report when any part of it fails, so the entries
+// that already went through arrive again.
+describe('a report sent more than once', () => {
+  it('stores each entry once', async () => {
+    const first = await callHandler(createCatchEvent, { method: 'POST', body: aCatch({ reportId: 'r1', entryId: 'e1' }) });
+    const again = await callHandler(createCatchEvent, { method: 'POST', body: aCatch({ reportId: 'r1', entryId: 'e1' }) });
+    await callHandler(createCatchEvent, { method: 'POST', body: aCatch({ reportId: 'r1', entryId: 'e2', fishGroup: 'tuna/tuna-like' }) });
+
+    expect(first.status).toBe(201);
+    expect(again.status).toBe(200);
+    expect(again.body._id).toEqual(first.body._id);
+    const stored = await db.collection('catch-events').find({}).sort({ entryId: 1 }).toArray();
+    expect(stored.map(e => [e.reportId, e.entryId, e.fishGroup])).toEqual([
+      ['r1', 'e1', 'reef fish'],
+      ['r1', 'e2', 'tuna/tuna-like'],
+    ]);
+  });
+
+  it('stores a no-catch report once', async () => {
+    const noCatch = aCatch({ reportId: 'r2', catch_outcome: 0, fishGroup: undefined, quantity: undefined });
+    await callHandler(createCatchEvent, { method: 'POST', body: noCatch });
+    await callHandler(createCatchEvent, { method: 'POST', body: noCatch });
+
+    expect(await db.collection('catch-events').countDocuments()).toBe(1);
+  });
+
+  it('stores one copy and answers every request when copies arrive together', async () => {
+    await db.collection('catch-events').createIndex(
+      { reportId: 1, entryId: 1 },
+      { name: 'idx_report_entry_unique', unique: true, partialFilterExpression: { reportId: { $exists: true } } }
+    );
+    const bodies = [
+      aCatch({ reportId: 'r3', entryId: 'e1' }),
+      aCatch({ reportId: 'r4', catch_outcome: 0, fishGroup: undefined, quantity: undefined }),
+    ];
+    const posted = await Promise.all(bodies.flatMap(body =>
+      Array.from({ length: 20 }, () => callHandler(createCatchEvent, { method: 'POST', body }))));
+
+    expect(posted.map(p => p.status).filter(s => s !== 200 && s !== 201)).toEqual([]);
+    expect(await db.collection('catch-events').countDocuments()).toBe(2);
+  });
+
+  it('still keeps every report from an app version without report ids', async () => {
+    await callHandler(createCatchEvent, { method: 'POST', body: aCatch() });
+    await callHandler(createCatchEvent, { method: 'POST', body: aCatch() });
+
+    expect(await db.collection('catch-events').countDocuments()).toBe(2);
+  });
 });
 
 describe('rejecting a bad report', () => {
@@ -147,6 +209,24 @@ describe('rejecting a bad report', () => {
     const posted = await callHandler(createCatchEvent, {
       method: 'POST',
       body: aCatch({ quantity: -5 }),
+    });
+
+    expect(posted.status).toBe(400);
+    expect(await db.collection('catch-events').countDocuments()).toBe(0);
+  });
+
+  it('refuses negative or non-numeric fuel', async () => {
+    for (const fuel_liters of [-1, '20']) {
+      const posted = await callHandler(createCatchEvent, { method: 'POST', body: aCatch({ fuel_liters }) });
+      expect(posted.status).toBe(400);
+    }
+    expect(await db.collection('catch-events').countDocuments()).toBe(0);
+  });
+
+  it('refuses a report id that is not a string', async () => {
+    const posted = await callHandler(createCatchEvent, {
+      method: 'POST',
+      body: aCatch({ reportId: { $ne: null }, entryId: 'e1' }),
     });
 
     expect(posted.status).toBe(400);

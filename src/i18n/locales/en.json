@@ -374,6 +374,8 @@
     "reportNoCatch": "Report No Catch",
     "noCatch": "No Catch",
     "reportNoCatchDescription": "Report that no fish were caught",
+    "fuelUsed": "Fuel used (litres)",
+    "fuelUsedDescription": "Optional. How many litres of fuel this trip used",
     "catches": "Catches",
     "youCanAddUpTo": "You can add up to 5 different fish groups",
     "takePhoto": "Take Photo",

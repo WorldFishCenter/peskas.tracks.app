@@ -48,6 +48,7 @@ const indexDefinitions = {
     { keys: { reportedAt: -1 }, options: { name: 'idx_reportedAt_desc' } },
     { keys: { date: -1 }, options: { name: 'idx_date_desc' } },
     { keys: { catch_outcome: 1 }, options: { name: 'idx_catch_outcome' } },
+    { keys: { reportId: 1, entryId: 1 }, options: { name: 'idx_report_entry_unique', unique: true, partialFilterExpression: { reportId: { $exists: true } } } },
 
     // Compound indexes for common queries
     { keys: { imei: 1, reportedAt: -1 }, options: { name: 'idx_imei_reported' } },

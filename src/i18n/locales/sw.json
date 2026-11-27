@@ -374,6 +374,8 @@
     "reportNoCatch": "Ripoti Hakuna Uvuvi",
     "noCatch": "Hakuna Uvuvi",
     "reportNoCatchDescription": "Ripoti kwamba hakuna samaki waliovuviwa",
+    "fuelUsed": "Mafuta yaliyotumika (lita)",
+    "fuelUsedDescription": "Si lazima. Lita ngapi za mafuta zilitumika katika safari hii",
     "catches": "Uvuvi",
     "youCanAddUpTo": "Unaweza kuongeza hadi makundi 5 tofauti ya samaki",
     "takePhoto": "Piga Picha",
